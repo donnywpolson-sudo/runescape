@@ -97,6 +97,12 @@ def render_world_object(
         _render_cooking_range(holder, obj.object_id)
     elif render_kind == "combat_dummy":
         _render_combat_dummy(holder, obj.object_id)
+    elif render_kind == "furnace":
+        _render_furnace(holder, obj.object_id)
+    elif render_kind == "anvil":
+        _render_anvil(holder, obj.object_id)
+    elif render_kind == "npc":
+        _render_quest_npc(holder, obj.object_id)
     elif render_kind == "mob":
         _render_mob(holder, obj)
     elif render_kind == "ground_item":
@@ -488,6 +494,56 @@ def _render_combat_dummy(holder: NodePath, name: str) -> None:
     head = make_cylinder(f"{name}_head", 0.14, 0.16, 8, C.STUMP_TOP)
     head.reparentTo(holder)
     head.setZ(0.88)
+
+
+def _render_furnace(holder: NodePath, name: str) -> None:
+    _shadow(holder, f"{name}_shadow", 0.58, 0.42)
+    base = make_cylinder(f"{name}_base", 0.36, 0.52, 8, C.STONE_DARK)
+    base.reparentTo(holder)
+    base.setZ(0.02)
+
+    firebox = make_box(f"{name}_firebox", (0.34, 0.08, 0.20), C.OUTLINE)
+    firebox.reparentTo(holder)
+    firebox.setPos(0.0, -0.33, 0.15)
+
+    fire = make_box(f"{name}_fire", (0.22, 0.04, 0.12), C.CLOTH_RED)
+    fire.reparentTo(holder)
+    fire.setPos(0.0, -0.38, 0.18)
+
+    chimney = make_cylinder(f"{name}_chimney", 0.16, 0.54, 8, C.STONE)
+    chimney.reparentTo(holder)
+    chimney.setZ(0.48)
+
+    glow = make_ground_ring(f"{name}_glow", 0.40, C.LAMP, thickness=1.4)
+    glow.reparentTo(holder)
+    glow.setZ(0.035)
+
+
+def _render_anvil(holder: NodePath, name: str) -> None:
+    _shadow(holder, f"{name}_shadow", 0.50, 0.28)
+    stump = make_cylinder(f"{name}_stump", 0.18, 0.28, 8, C.STUMP)
+    stump.reparentTo(holder)
+    stump.setZ(0.02)
+
+    body = make_box(f"{name}_body", (0.46, 0.22, 0.16), C.STONE_DARK)
+    body.reparentTo(holder)
+    body.setZ(0.30)
+
+    horn = make_cone(f"{name}_horn", 0.16, 0.26, 5, C.STONE)
+    horn.reparentTo(holder)
+    horn.setPos(0.32, 0.0, 0.34)
+    horn.setH(90)
+
+    face = make_box(f"{name}_face", (0.16, 0.20, 0.18), C.STONE)
+    face.reparentTo(holder)
+    face.setPos(-0.28, 0.0, 0.30)
+
+
+def _render_quest_npc(holder: NodePath, name: str) -> None:
+    _render_npc(holder, name, (0.0, 0.0, 0.02), C.CLOTH_BLUE)
+    marker = make_ground_ring(f"{name}_quest_ring", 0.34, C.GOLD, thickness=1.4)
+    marker.reparentTo(holder)
+    marker.setZ(0.035)
 
 
 def _render_mob(holder: NodePath, obj: WorldObject) -> None:

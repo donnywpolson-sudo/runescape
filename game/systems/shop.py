@@ -12,10 +12,6 @@ class StockItem:
     item_id: str
     price: int
 
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "StockItem":
-        return cls(item_id=str(data["item_id"]), price=int(data["price"]))
-
 
 @dataclass(frozen=True)
 class PurchaseResult:
@@ -35,7 +31,7 @@ class Shop:
         self.item_definitions = item_definitions
         self.stock = {
             stock_item.item_id: stock_item
-            for stock_item in (StockItem.from_dict(raw_stock_item) for raw_stock_item in stock or [])
+            for stock_item in (_stock_item_from_dict(raw_stock_item, item_definitions) for raw_stock_item in stock or [])
         }
 
     def stock_items(self) -> list[StockItem]:
@@ -76,10 +72,15 @@ class Shop:
             return 0
         return int(definition.get("sell_price", 0))
 
-    def sell_item(self, inventory: Inventory, item_id: str) -> tuple[int, int]:
-        return self.sell_all(inventory, item_id)
+    def sell_item(self, inventory: Inventory, item_id: str, quantity: int | None = None) -> tuple[int, int]:
+        return self.sell_all(inventory, item_id, quantity)
 
-    def sell_all(self, inventory: Inventory, item_id: str | None = None) -> tuple[int, int]:
+    def sell_all(
+        self,
+        inventory: Inventory,
+        item_id: str | None = None,
+        quantity: int | None = None,
+    ) -> tuple[int, int]:
         if item_id is None:
             sold = 0
             coins = 0
@@ -89,8 +90,10 @@ class Shop:
                 coins += item_coins
             return sold, coins
 
-        quantity = inventory.count(item_id)
-        if quantity <= 0:
+        amount = inventory.count(item_id)
+        if quantity is not None:
+            amount = min(amount, quantity)
+        if amount <= 0:
             return 0, 0
 
         definition = self.item_definitions.get(item_id)
@@ -100,7 +103,7 @@ class Shop:
         if price <= 0:
             return 0, 0
 
-        removed = inventory.remove(item_id, quantity)
+        removed = inventory.remove(item_id, amount)
         if removed <= 0:
             return 0, 0
         return removed, removed * price
@@ -108,3 +111,18 @@ class Shop:
 
 def _item_name(definition: dict[str, object], item_id: str) -> str:
     return str(definition.get("name") or item_id.replace("_", " "))
+
+
+def _stock_item_from_dict(
+    data: dict[str, Any],
+    item_definitions: dict[str, dict[str, object]],
+) -> StockItem:
+    item_id = str(data["item_id"])
+    raw_price = data.get("price")
+    if raw_price is not None:
+        return StockItem(item_id=item_id, price=int(raw_price))
+    definition = item_definitions.get(item_id, {})
+    buy_price = definition.get("buy_price")
+    if buy_price is not None:
+        return StockItem(item_id=item_id, price=int(buy_price))
+    return StockItem(item_id=item_id, price=max(1, int(definition.get("sell_price", 1)) * 3))

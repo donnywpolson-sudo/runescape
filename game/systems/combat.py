@@ -111,6 +111,9 @@ class CombatResult:
     duration: float = 0.0
     killed: bool = False
     drops: tuple[DropStack, ...] = ()
+    player_damage: int = 0
+    enemy_damage: int = 0
+    player_dead: bool = False
 
 
 class CombatSystem:
@@ -120,12 +123,42 @@ class CombatSystem:
         *,
         time_provider: TimeProvider = time.time,
         damage_per_hit: int = 1,
+        skills: Any | None = None,
+        current_hitpoints: int | None = None,
     ) -> None:
         self.mobs = dict(mobs) if isinstance(mobs, dict) else {mob.mob_id: mob for mob in mobs}
         self.time_provider = time_provider
         self.damage_per_hit = max(1, int(damage_per_hit))
+        self.defence_bonus = 0
+        self.skills = skills
+        self.current_hitpoints = int(current_hitpoints) if current_hitpoints is not None else self.max_hitpoints()
         self.states: dict[str, MobState] = {}
         self.pending: PendingCombat | None = None
+
+    def max_hitpoints(self) -> int:
+        if self.skills is None:
+            return 10
+        if hasattr(self.skills, "level"):
+            return max(1, int(self.skills.level("hitpoints")))
+        return max(1, int(self.skills.get("hitpoints").level))
+
+    def heal(self, amount: int) -> int:
+        if amount <= 0:
+            return 0
+        before = self.current_hitpoints
+        self.current_hitpoints = min(self.max_hitpoints(), self.current_hitpoints + amount)
+        return self.current_hitpoints - before
+
+    def load_player_hitpoints(self, value: object | None) -> None:
+        try:
+            hitpoints = int(value) if value is not None else self.max_hitpoints()
+        except (TypeError, ValueError):
+            hitpoints = self.max_hitpoints()
+        self.current_hitpoints = max(1, min(self.max_hitpoints(), hitpoints))
+
+    def reset_player(self) -> None:
+        self.current_hitpoints = self.max_hitpoints()
+        self.cancel_pending()
 
     def start_attack(
         self,
@@ -141,6 +174,8 @@ class CombatSystem:
             return CombatResult(False, "Too far away", mob_id=mob.mob_id)
         if self.is_dead(mob.mob_id):
             return CombatResult(False, f"{mob.display_name} is defeated", mob_id=mob.mob_id)
+        if self.current_hitpoints <= 0:
+            return CombatResult(False, "You need to recover before fighting", mob_id=mob.mob_id, player_dead=True)
 
         if self.pending is not None:
             if self.pending.mob_id == mob.mob_id:
@@ -179,7 +214,9 @@ class CombatSystem:
             return CombatResult(False, f"{mob.display_name} is defeated", mob_id=mob.mob_id)
 
         state = self._state_for(mob)
-        remaining_hitpoints = max(0, state.hitpoints - self.damage_per_hit)
+        player_damage = self._player_damage()
+        remaining_hitpoints = max(0, state.hitpoints - player_damage)
+        self._grant_combat_xp(player_damage)
         if remaining_hitpoints <= 0:
             self.states[mob.mob_id] = MobState(
                 hitpoints=0,
@@ -192,6 +229,20 @@ class CombatSystem:
                 mob_id=mob.mob_id,
                 killed=True,
                 drops=mob.drops,
+                player_damage=player_damage,
+            )
+
+        enemy_damage = self._enemy_damage(mob)
+        self.current_hitpoints = max(0, self.current_hitpoints - enemy_damage)
+        if self.current_hitpoints <= 0:
+            self.states[mob.mob_id] = MobState(hitpoints=remaining_hitpoints)
+            return CombatResult(
+                False,
+                f"You were defeated by {mob.display_name}",
+                mob_id=mob.mob_id,
+                player_damage=player_damage,
+                enemy_damage=enemy_damage,
+                player_dead=True,
             )
 
         self.states[mob.mob_id] = MobState(hitpoints=remaining_hitpoints)
@@ -202,10 +253,12 @@ class CombatSystem:
         )
         return CombatResult(
             True,
-            f"Hit {mob.display_name}: {remaining_hitpoints} HP left",
+            f"Hit {mob.display_name}: {remaining_hitpoints} HP left; {mob.display_name} hit you for {enemy_damage}",
             mob_id=mob.mob_id,
             pending=True,
             duration=mob.attack_seconds,
+            player_damage=player_damage,
+            enemy_damage=enemy_damage,
         )
 
     def cancel_pending(self) -> bool:
@@ -270,6 +323,23 @@ class CombatSystem:
     def _is_adjacent(self, player_tile: Tile, target_tile: Tile) -> bool:
         distance = max(abs(player_tile[0] - target_tile[0]), abs(player_tile[1] - target_tile[1]))
         return 0 < distance <= settings.INTERACTION_RANGE
+
+    def _player_damage(self) -> int:
+        strength_bonus = 0
+        if self.skills is not None and hasattr(self.skills, "level"):
+            strength_bonus = max(0, int(self.skills.level("strength")) - 1) // 10
+        return max(1, self.damage_per_hit + strength_bonus)
+
+    def _enemy_damage(self, mob: MobDefinition) -> int:
+        return max(0, max(1, mob.level // 3) - self.defence_bonus)
+
+    def _grant_combat_xp(self, damage: int) -> None:
+        if self.skills is None or damage <= 0 or not hasattr(self.skills, "add_xp"):
+            return
+        self.skills.add_xp("attack", damage * 4)
+        self.skills.add_xp("strength", damage * 4)
+        self.skills.add_xp("defence", damage * 2)
+        self.skills.add_xp("hitpoints", damage)
 
 
 def mobs_from_data(data: Iterable[dict[str, Any]]) -> dict[str, MobDefinition]:

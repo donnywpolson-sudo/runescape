@@ -55,6 +55,21 @@ class SkillsTests(unittest.TestCase):
         skills.add_xp("cooking", 1_000_000)
         self.assertEqual(skills.get("cooking").level, 99)
 
+    def test_starting_level_is_floor_when_xp_changes(self) -> None:
+        skills = Skills(
+            {
+                "hitpoints": {
+                    "display_name": "Hitpoints",
+                    "starting_level": 10,
+                    "xp_thresholds": osrs_xp_thresholds(),
+                }
+            }
+        )
+
+        skills.add_xp("hitpoints", 1)
+
+        self.assertEqual(skills.get("hitpoints").level, 10)
+
     def test_old_save_missing_cooking_loads_with_cooking_level_one(self) -> None:
         skills = Skills(
             {

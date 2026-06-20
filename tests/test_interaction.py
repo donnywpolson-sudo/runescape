@@ -70,6 +70,64 @@ def test_shop_interaction_opens_shop_without_autoselling() -> None:
     assert opened == [True]
 
 
+def test_context_action_generation_covers_interactable_types() -> None:
+    world = WorldMap(
+        {
+            "width": 6,
+            "height": 6,
+            "blocked_tiles": [],
+            "water_tiles": [],
+            "resource_nodes": [_tree().to_dict()],
+            "furnace": {"id": "furnace_01", "tile": [3, 1]},
+            "anvil": {"id": "anvil_01", "tile": [4, 1]},
+            "npcs": [{"id": "guide_01", "name": "Village Guide", "tile": [1, 3], "quest_id": "starter_path"}],
+            "mobs": [_mob_data()],
+        }
+    )
+    inventory = Inventory({"bronze_axe": 1})
+    skills = Skills(_skills())
+    manager = InteractionManager(
+        world,
+        _Player(tile=(1, 1)),
+        inventory,
+        skills,
+        Shop(_items()),
+        lambda amount: None,
+        lambda message: None,
+        gathering=GatheringSystem([_tree()], inventory, skills),
+        combat=CombatSystem(world.mob_definitions),
+    )
+
+    assert _action_ids(manager, "tree_01") == ["gather", "examine", "cancel"]
+    assert manager.get_actions(world.get_object("tree_01"))[0].label == "Chop down Tree"
+    assert _action_ids(manager, "furnace_01") == ["smelt", "examine", "cancel"]
+    assert _action_ids(manager, "anvil_01") == ["smith", "examine", "cancel"]
+    assert _action_ids(manager, "guide_01") == ["talk", "examine", "cancel"]
+    assert _action_ids(manager, "mob_01") == ["attack", "examine", "cancel"]
+
+
+def test_perform_action_separates_examine_from_npc_talk() -> None:
+    feedback: list[str] = []
+    talked_to: list[str] = []
+    manager = InteractionManager(
+        SimpleNamespace(),
+        SimpleNamespace(tile=(0, 0)),
+        Inventory(),
+        Skills(),
+        Shop(_items()),
+        lambda amount: None,
+        feedback.append,
+        talk_to_npc=lambda obj: talked_to.append(obj.object_id),
+    )
+    npc = WorldObject("guide_01", "npc", (1, 1), display_name="Village Guide")
+
+    manager.perform_action("examine", npc)
+    manager.perform_action("talk", npc)
+
+    assert feedback == ["Village Guide"]
+    assert talked_to == ["guide_01"]
+
+
 def test_move_cancels_pending_gathering() -> None:
     grid = TileGrid(4, 4)
     gathering = GatheringSystem([_tree()], Inventory(), Skills(_skills()), time_provider=lambda: 100.0)
@@ -299,3 +357,7 @@ def _mob_data() -> dict[str, object]:
             {"item_id": "wooden_splinters", "quantity": 1},
         ],
     }
+
+
+def _action_ids(manager: InteractionManager, object_id: str) -> list[str]:
+    return [action.action_id for action in manager.get_actions(manager.world_map.get_object(object_id))]

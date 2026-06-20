@@ -14,7 +14,7 @@ from game import settings
 from game.systems.inventory import COINS_ITEM_ID
 
 DEFAULT_SAVE_DIR = settings.SAVES_DIR
-SAVE_VERSION = 2
+SAVE_VERSION = 3
 MAX_SAVE_STEM_LENGTH = 64
 LOGGER = logging.getLogger(__name__)
 STARTER_ITEMS = {
@@ -32,6 +32,8 @@ DEFAULT_SKILL_IDS = (
     "attack",
     "strength",
     "defence",
+    "hitpoints",
+    "smithing",
 )
 _SAFE_FILENAME_PATTERN = re.compile(r"[^A-Za-z0-9._-]+")
 _WINDOWS_RESERVED_NAMES = {
@@ -94,13 +96,15 @@ def create_default_save(username: str) -> dict[str, Any]:
             "bank": {},
             "equipment": {},
             "skills": {
-                skill_id: {"xp": 0, "level": 1}
+                skill_id: {"xp": 0, "level": 10 if skill_id == "hitpoints" else 1}
                 for skill_id in DEFAULT_SKILL_IDS
             },
             "combat": {
+                "current_hitpoints": 10,
                 "mobs": {},
                 "ground_items": [],
             },
+            "quest_state": {},
             "depleted_resources": [],
             "chopped_trees": [],
             "world": {
@@ -108,9 +112,11 @@ def create_default_save(username: str) -> dict[str, Any]:
                 "chopped_trees": [],
                 "resource_nodes": {},
                 "combat": {
+                    "current_hitpoints": 10,
                     "mobs": {},
                     "ground_items": [],
                 },
+                "quest_state": {},
                 "day": 1,
                 "minute": 360.0,
             },
@@ -213,6 +219,46 @@ def migrate_legacy_starter_items(state: dict[str, Any]) -> dict[str, Any]:
 def migrate_save_state(state: dict[str, Any]) -> dict[str, Any]:
     migrated = migrate_legacy_coins_to_inventory(state)
     migrated = migrate_legacy_starter_items(migrated)
+    migrated = migrate_playable_v1_defaults(migrated)
+    return migrated
+
+
+def migrate_playable_v1_defaults(state: dict[str, Any]) -> dict[str, Any]:
+    migrated = deepcopy(state)
+    skills = migrated.get("skills")
+    skills = dict(skills) if isinstance(skills, dict) else {}
+    for skill_id in DEFAULT_SKILL_IDS:
+        default_level = 10 if skill_id == "hitpoints" else 1
+        values = skills.get(skill_id)
+        if isinstance(values, dict):
+            values = dict(values)
+            values.setdefault("xp", 0)
+            values.setdefault("level", default_level)
+            skills[skill_id] = values
+        else:
+            skills[skill_id] = {"xp": 0, "level": default_level}
+    migrated["skills"] = skills
+
+    combat = migrated.get("combat")
+    combat = dict(combat) if isinstance(combat, dict) else {}
+    combat.setdefault("current_hitpoints", skills["hitpoints"]["level"])
+    combat.setdefault("mobs", {})
+    combat.setdefault("ground_items", [])
+    migrated["combat"] = combat
+
+    world = migrated.get("world")
+    world = dict(world) if isinstance(world, dict) else {}
+    world_combat = world.get("combat")
+    world_combat = dict(world_combat) if isinstance(world_combat, dict) else {}
+    world_combat.setdefault("current_hitpoints", combat["current_hitpoints"])
+    world_combat.setdefault("mobs", {})
+    world_combat.setdefault("ground_items", [])
+    world["combat"] = world_combat
+    world.setdefault("quest_state", migrated.get("quest_state", {}))
+    migrated["world"] = world
+
+    migrated.setdefault("quest_state", world.get("quest_state", {}))
+    migrated["version"] = SAVE_VERSION
     return migrated
 
 

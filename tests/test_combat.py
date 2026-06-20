@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from game.systems.combat import CombatSystem, DropStack, MobDefinition
+from game.systems.skills import Skills, osrs_xp_thresholds
 from game.world.grid import TileGrid
 
 
@@ -61,14 +62,57 @@ def test_combat_state_round_trip_preserves_dead_mob() -> None:
     assert loaded.is_dead("mob_01") is True
 
 
-def _mob() -> MobDefinition:
+def test_combat_damages_player_grants_xp_and_can_heal() -> None:
+    clock = FakeClock()
+    skills = Skills(_skills())
+    system = CombatSystem([_mob(hitpoints=3, level=3)], skills=skills, time_provider=clock)
+    grid = TileGrid(5, 5)
+
+    system.start_attack("mob_01", (1, 2), grid, set())
+    clock.now += 1.0
+    result = system.update()
+
+    assert result is not None
+    assert result.enemy_damage == 1
+    assert system.current_hitpoints == 9
+    assert skills.xp("attack") == 4
+
+    assert system.heal(3) == 1
+    assert system.current_hitpoints == 10
+
+
+def test_combat_reports_player_death() -> None:
+    clock = FakeClock()
+    system = CombatSystem([_mob(hitpoints=4, level=9)], current_hitpoints=2, time_provider=clock)
+    grid = TileGrid(5, 5)
+
+    system.start_attack("mob_01", (1, 2), grid, set())
+    clock.now += 1.0
+    result = system.update()
+
+    assert result is not None
+    assert result.player_dead is True
+    assert system.current_hitpoints == 0
+
+
+def _mob(hitpoints: int = 2, level: int = 1) -> MobDefinition:
     return MobDefinition(
         mob_id="mob_01",
         display_name="Worn dummy",
-        level=1,
-        hitpoints=2,
+        level=level,
+        hitpoints=hitpoints,
         attack_seconds=1.0,
         respawn_seconds=5.0,
         position=(2, 2),
         drops=(DropStack("coins", 3), DropStack("wooden_splinters", 1)),
     )
+
+
+def _skills() -> dict[str, dict[str, object]]:
+    thresholds = osrs_xp_thresholds()
+    return {
+        "attack": {"display_name": "Attack", "starting_level": 1, "xp_thresholds": thresholds},
+        "strength": {"display_name": "Strength", "starting_level": 1, "xp_thresholds": thresholds},
+        "defence": {"display_name": "Defence", "starting_level": 1, "xp_thresholds": thresholds},
+        "hitpoints": {"display_name": "Hitpoints", "starting_level": 10, "xp_thresholds": thresholds},
+    }

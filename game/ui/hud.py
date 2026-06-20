@@ -29,13 +29,28 @@ TAB_ORDER = (INVENTORY_TAB, CLOTHES_TAB, SKILLS_TAB)
 INVENTORY_COLUMNS = 4
 INVENTORY_ROWS = 7
 INVENTORY_SLOT_COUNT = INVENTORY_COLUMNS * INVENTORY_ROWS
-INVENTORY_QUANTITY_TEXT_SCALE = 0.020
+INVENTORY_QUANTITY_TEXT_SCALE = 0.024
+SIDE_TAB_TEXT_SCALE = 0.036
+SKILL_ROW_SPACING = 0.095
+SKILL_NAME_TEXT_SCALE = 0.027
+SKILL_DETAIL_TEXT_SCALE = 0.023
+ITEM_ICON_LABEL_TEXT_SCALE = 0.020
 IconSpec = tuple[
     tuple[float, float, float, float],
     tuple[float, float, float],
     tuple[float, float, float, float],
 ]
-DEFAULT_SKILL_IDS = ("woodcutting", "mining", "fishing", "cooking", "attack", "strength", "defence")
+DEFAULT_SKILL_IDS = (
+    "woodcutting",
+    "mining",
+    "fishing",
+    "cooking",
+    "attack",
+    "strength",
+    "defence",
+    "hitpoints",
+    "smithing",
+)
 EQUIPMENT_SLOT_LAYOUT = (
     ("head", "Head", 0.00, -0.07),
     ("cape", "Cape", -0.13, -0.20),
@@ -93,7 +108,11 @@ class Hud:
         self.xp_timer = 0.0
         self.feedback_message = ""
         self.hover_text = ""
+        self.ui_hover_text = ""
         self.shop_stock: list[dict[str, object]] = []
+        self.quantity_mode = "all"
+        self.chat_messages: list[str] = []
+        self.context_buttons: list[DirectButton] = []
 
         self.stats_panel = _panel((-0.02, 0.44, -0.25, 0.04), (-1.75, 0, 0.95), PANEL)
         self.stats = _text(self.stats_panel, "", (0.025, -0.035), 0.032, TextNode.ALeft, TEXT, True)
@@ -113,6 +132,12 @@ class Hud:
         self.xp_toast = _text(self.feedback_panel, "", (0.0, 0.070), 0.034, TextNode.ACenter, GOLD, True)
         self.xp_toast.hide()
 
+        self.chat_panel = _panel((-0.92, 0.40, -0.23, 0.03), (-0.76, 0, -0.70), PANEL_DARK)
+        self.chat_lines = [
+            _text(self.chat_panel, "", (-0.88, -0.010 - index * 0.030), 0.023, TextNode.ALeft, TEXT, True)
+            for index in range(8)
+        ]
+
         self.side_panel = _panel((-0.26, 0.26, -1.38, 0.18), (1.48, 0, 0.74), PANEL)
         _text(self.side_panel, "RuneScape Valley", (0.0, 0.115), 0.034, TextNode.ACenter, GOLD)
 
@@ -128,7 +153,7 @@ class Hud:
         self.tab_frames: dict[str, DirectFrame] = {}
         self.inventory_slots: list[_InventorySlot] = []
         self.equipment_slots: dict[str, _EquipmentSlot] = {}
-        self.skill_labels: dict[str, OnscreenText] = {}
+        self.skill_rows: dict[str, _SkillRow] = {}
         self._build_side_tabs()
         self.select_tab(INVENTORY_TAB)
 
@@ -136,6 +161,7 @@ class Hud:
         _text(self.bank_panel, "Bank", (0.0, 0.51), 0.045, TextNode.ACenter, GOLD)
         _button(self.bank_panel, "Close", (0.68, 0, 0.50), 0.040, self.on_bank_close)
         _button(self.bank_panel, "Deposit all", (-0.64, 0, 0.50), 0.035, self.on_deposit_all)
+        self._build_quantity_buttons(self.bank_panel, (-0.28, 0.50))
         _text(self.bank_panel, "Item", (-0.80, 0.43), 0.022, TextNode.ALeft, GOLD)
         _text(self.bank_panel, "Inv/Bank", (-0.28, 0.43), 0.022, TextNode.ACenter, GOLD)
         _text(self.bank_panel, "Item", (0.06, 0.43), 0.022, TextNode.ALeft, GOLD)
@@ -148,6 +174,7 @@ class Hud:
         _text(self.shop_panel, "General Store", (0.0, 0.43), 0.042, TextNode.ACenter, GOLD)
         _button(self.shop_panel, "Close", (0.58, 0, 0.42), 0.036, self.on_shop_close)
         _button(self.shop_panel, "Sell all", (-0.58, 0, 0.42), 0.030, self.on_sell_all)
+        self._build_quantity_buttons(self.shop_panel, (-0.28, 0.42))
         self.shop_coin_label = _text(self.shop_panel, "", (0.0, 0.365), 0.024, TextNode.ACenter, GOLD, True)
         _text(self.shop_panel, "Item", (-0.68, 0.34), 0.022, TextNode.ALeft, GOLD)
         _text(self.shop_panel, "Owned", (0.20, 0.34), 0.022, TextNode.ACenter, GOLD)
@@ -155,6 +182,9 @@ class Hud:
         self.empty_shop_label = _text(self.shop_panel, "No stock available", (0.0, 0.12), 0.030, TextNode.ACenter, MUTED_TEXT)
         self.shop_rows: dict[str, _ShopRow] = {}
         self.shop_panel.hide()
+
+        self.context_panel = _panel((-0.17, 0.17, -0.30, 0.03), (0.0, 0, 0.0), PANEL_DARK)
+        self.context_panel.hide()
 
     def update(
         self,
@@ -194,6 +224,7 @@ class Hud:
 
     def set_feedback(self, message: str) -> None:
         self.feedback_message = message
+        self.add_chat_message(message)
         self._sync_feedback_text()
         xp_text = _xp_toast_text(message)
         if xp_text:
@@ -201,8 +232,22 @@ class Hud:
             self.xp_toast.show()
             self.xp_timer = 2.2
 
+    def add_chat_message(self, message: str) -> None:
+        message = message.strip()
+        if not message:
+            return
+        self.chat_messages.append(message)
+        self.chat_messages = self.chat_messages[-8:]
+        for index, line in enumerate(self.chat_lines):
+            text = self.chat_messages[index] if index < len(self.chat_messages) else ""
+            line.setText(text)
+
     def set_hover_text(self, message: str) -> None:
         self.hover_text = message
+        self._sync_feedback_text()
+
+    def set_ui_hover_text(self, message: str) -> None:
+        self.ui_hover_text = message
         self._sync_feedback_text()
 
     def tick(self, dt: float) -> None:
@@ -247,6 +292,38 @@ class Hud:
         self.shop_is_open = False
         self.shop_panel.hide()
 
+    def show_context_menu(
+        self,
+        actions: list[tuple[str, str]],
+        command: Callable[[str], None],
+        pos: tuple[float, float, float] = (0.0, 0, 0.20),
+    ) -> None:
+        self.hide_context_menu()
+        if not actions:
+            return
+        self.context_panel.setPos(*pos)
+        self.context_panel.show()
+        for index, (action_id, label) in enumerate(actions[:9]):
+            button = _button(
+                self.context_panel,
+                label,
+                (0.0, 0, -0.035 - index * 0.055),
+                0.023,
+                lambda action_id=action_id: self._choose_context_action(action_id, command),
+            )
+            self.context_buttons.append(button)
+
+    def hide_context_menu(self) -> None:
+        for button in self.context_buttons:
+            button.destroy()
+        self.context_buttons.clear()
+        if hasattr(self, "context_panel"):
+            self.context_panel.hide()
+
+    def _choose_context_action(self, action_id: str, command: Callable[[str], None]) -> None:
+        self.hide_context_menu()
+        command(action_id)
+
     def _close_file_menu(self) -> None:
         self.file_menu_open = False
         self.file_menu.hide()
@@ -254,6 +331,7 @@ class Hud:
     def select_tab(self, tab_id: str) -> None:
         if tab_id not in self.tab_frames:
             return
+        self.set_ui_hover_text("")
         self.active_tab = tab_id
         for candidate_id, frame in self.tab_frames.items():
             if candidate_id == tab_id:
@@ -286,7 +364,7 @@ class Hud:
                 self.side_panel,
                 tab_labels[tab_id],
                 (tab_positions[tab_id], 0, -0.32),
-                0.018,
+                SIDE_TAB_TEXT_SCALE,
                 lambda tab_id=tab_id: self.select_tab(tab_id),
             )
 
@@ -297,6 +375,24 @@ class Hud:
         self._build_inventory_tab(self.tab_frames[INVENTORY_TAB])
         self._build_clothes_tab(self.tab_frames[CLOTHES_TAB])
         self._build_skills_tab(self.tab_frames[SKILLS_TAB])
+
+    def _build_quantity_buttons(self, parent: DirectFrame, origin: tuple[float, float]) -> None:
+        x, z = origin
+        _text(parent, "Qty", (x - 0.10, z - 0.004), 0.020, TextNode.ACenter, GOLD)
+        for index, mode in enumerate(("1", "5", "10", "all")):
+            label = "All" if mode == "all" else mode
+            _button(parent, label, (x + index * 0.095, 0, z), 0.020, lambda mode=mode: self.set_quantity_mode(mode))
+
+    def set_quantity_mode(self, mode: str) -> None:
+        if mode in {"1", "5", "10", "all"}:
+            self.quantity_mode = mode
+
+    def transaction_quantity(self, available: int) -> int:
+        if available <= 0:
+            return 0
+        if self.quantity_mode == "all":
+            return available
+        return min(available, int(self.quantity_mode))
 
     def _build_inventory_tab(self, parent: DirectFrame) -> None:
         x_start = -0.156
@@ -311,7 +407,13 @@ class Hud:
                 (x_start + col * x_gap, 0, z_start - row * z_gap),
                 lambda index=index: self._select_inventory_slot(index),
             )
-            self.inventory_slots.append(_InventorySlot(button=button, icon=_SlotIcon.create(button)))
+            self.inventory_slots.append(
+                _InventorySlot(
+                    button=button,
+                    icon=_SlotIcon.create(button),
+                    on_hover=self.set_ui_hover_text,
+                )
+            )
 
     def _build_clothes_tab(self, parent: DirectFrame) -> None:
         _frame((-0.044, 0.044, -0.18, 0.18), (0.0, 0, -0.36), (0.20, 0.13, 0.08, 1.0), parent)
@@ -329,9 +431,28 @@ class Hud:
 
     def _build_skills_tab(self, parent: DirectFrame) -> None:
         for index, skill_id in enumerate(self.skill_ids):
-            z = -0.075 - index * 0.120
+            z = -0.075 - index * SKILL_ROW_SPACING
             _skill_icon(parent, skill_id, (-0.178, 0, z - 0.010))
-            self.skill_labels[skill_id] = _text(parent, "", (-0.125, z), 0.020, TextNode.ALeft, MUTED_TEXT, True)
+            self.skill_rows[skill_id] = _SkillRow(
+                name_label=_text(
+                    parent,
+                    "",
+                    (-0.125, z + 0.018),
+                    SKILL_NAME_TEXT_SCALE,
+                    TextNode.ALeft,
+                    TEXT,
+                    True,
+                ),
+                detail_label=_text(
+                    parent,
+                    "",
+                    (-0.125, z - 0.020),
+                    SKILL_DETAIL_TEXT_SCALE,
+                    TextNode.ALeft,
+                    MUTED_TEXT,
+                    True,
+                ),
+            )
 
     def _select_inventory_slot(self, index: int) -> None:
         if index < 0 or index >= len(self.inventory_slots):
@@ -363,11 +484,11 @@ class Hud:
                 slot.clear()
 
     def _sync_skill_labels(self, skills: Any) -> None:
-        for skill_id, label in self.skill_labels.items():
-            label.setText(_compact_skill(_skill_label(self.skills_data, skill_id), skills.get(skill_id)))
+        for skill_id, row in self.skill_rows.items():
+            row.set_skill(_skill_label(self.skills_data, skill_id), skills.get(skill_id))
 
     def _sync_feedback_text(self) -> None:
-        self.feedback.setText(self.hover_text or self.feedback_message)
+        self.feedback.setText(self.ui_hover_text or self.hover_text or self.feedback_message)
 
     def _sync_bank_rows(self, inventory: dict[str, int], bank: dict[str, int]) -> None:
         visible_item_ids = _bank_item_ids(self.items_data, inventory, bank)
@@ -415,38 +536,51 @@ class Hud:
     def _sync_shop_rows(self, inventory: dict[str, int], shop_stock: list[dict[str, object]]) -> None:
         self.shop_coin_label.setText(f"Coins: {inventory.get(COINS_ITEM_ID, 0)}")
         stock_prices = _stock_prices(shop_stock)
-        visible_item_ids = sorted(stock_prices, key=lambda item_id: (_category_sort_key(self.items_data, item_id), item_id))
-        visible_item_id_set = set(visible_item_ids)
+        buy_item_ids = sorted(stock_prices, key=lambda item_id: (_category_sort_key(self.items_data, item_id), item_id))
+        sell_item_ids = [
+            item_id
+            for item_id in _sellable_item_ids(self.items_data, inventory)
+            if item_id not in stock_prices and item_id != COINS_ITEM_ID
+        ]
+        visible_rows = [(item_id, item_id, "buy") for item_id in buy_item_ids]
+        visible_rows.extend((f"sell:{item_id}", item_id, "sell") for item_id in sell_item_ids)
+        visible_row_ids = {row_id for row_id, _item_id, _mode in visible_rows}
 
         for item_id in list(self.shop_rows):
-            if item_id not in visible_item_id_set:
+            if item_id not in visible_row_ids:
                 self.shop_rows.pop(item_id).destroy()
 
-        if visible_item_ids:
+        if visible_rows:
             self.empty_shop_label.hide()
         else:
             self.empty_shop_label.show()
 
-        for index, item_id in enumerate(visible_item_ids):
+        for index, (row_id, item_id, mode) in enumerate(visible_rows):
             y = 0.27 - index * 0.052
-            row = self.shop_rows.get(item_id)
+            row = self.shop_rows.get(row_id)
             if row is None:
+                action_text = "Buy" if mode == "buy" else "Sell"
+                command = (
+                    (lambda item_id=item_id: self.on_buy_item(item_id))
+                    if mode == "buy"
+                    else (lambda item_id=item_id: self.on_sell_item(item_id))
+                )
                 row = _ShopRow(
                     item_label=_text(self.shop_panel, _item_name(self.items_data, item_id), (-0.68, y), 0.019, TextNode.ALeft, TEXT, True),
                     quantity_label=_text(self.shop_panel, "", (0.20, y), 0.019, TextNode.ACenter, TEXT, True),
                     price_label=_text(self.shop_panel, "", (0.36, y), 0.019, TextNode.ACenter, TEXT, True),
                     action_button=_button(
                         self.shop_panel,
-                        "Buy",
+                        action_text,
                         (0.58, 0, y + 0.004),
                         0.020,
-                        lambda item_id=item_id: self.on_buy_item(item_id),
+                        command,
                     ),
                 )
-                self.shop_rows[item_id] = row
+                self.shop_rows[row_id] = row
             row.set_pos(y)
             row.quantity_label.setText(str(inventory.get(item_id, 0)))
-            row.price_label.setText(str(stock_prices[item_id]))
+            row.price_label.setText(str(stock_prices[item_id] if mode == "buy" else _sell_price(self.items_data, item_id)))
 
     def _sync_progress(self, gather_progress: float | None) -> None:
         if gather_progress is None:
@@ -463,7 +597,14 @@ class Hud:
 class _InventorySlot:
     button: DirectButton
     icon: "_SlotIcon"
+    on_hover: Callable[[str], None]
     item_id: str | None = None
+    hover_text: str = ""
+    is_hovered: bool = False
+
+    def __post_init__(self) -> None:
+        self.button.bind(DGG.ENTER, self._on_hover_enter)
+        self.button.bind(DGG.EXIT, self._on_hover_exit)
 
     def set_item(
         self,
@@ -476,38 +617,57 @@ class _InventorySlot:
             self.clear()
             return
         self.item_id = item_id
+        self.hover_text = _inventory_hover_text(items_data, item_id, quantity)
         base_color = SLOT_HILITE if selected else SLOT
         hover_color = SLOT_HILITE if selected else BUTTON_HOVER
         self.button["text"] = _format_quantity(quantity)
         self.button["text_fg"] = TEXT
         self.button["frameColor"] = (base_color, hover_color, hover_color, base_color)
         self.icon.set_item(items_data, item_id)
+        if self.is_hovered:
+            self.on_hover(self.hover_text)
 
     def clear(self) -> None:
         self.item_id = None
+        self.hover_text = ""
         self.button["text"] = ""
         self.button["text_fg"] = MUTED_TEXT
         self.button["frameColor"] = (SLOT, SLOT, SLOT, SLOT)
         self.icon.clear()
+        if self.is_hovered:
+            self.on_hover("")
+
+    def _on_hover_enter(self, _event: Any = None) -> None:
+        self.is_hovered = True
+        if self.hover_text:
+            self.on_hover(self.hover_text)
+
+    def _on_hover_exit(self, _event: Any = None) -> None:
+        self.is_hovered = False
+        self.on_hover("")
 
 
 @dataclass
 class _SlotIcon:
     parts: list[DirectFrame]
+    label: OnscreenText
 
     @classmethod
     def create(cls, parent: Any) -> "_SlotIcon":
         icon = cls(
-            [
+            parts=[
                 _icon_frame((0.0, 0.0, 0.0, 0.0), (0.0, 0, 0.0), UI.TRANSPARENT, parent)
                 for _ in range(5)
-            ]
+            ],
+            label=_icon_label(parent),
         )
         icon.clear()
         return icon
 
     def set_item(self, items_data: dict[str, dict[str, object]], item_id: str) -> None:
         specs = _item_icon_specs(items_data, item_id)
+        self.label.setText(_item_icon_label(items_data, item_id))
+        self.label.show()
         for index, part in enumerate(self.parts):
             if index < len(specs):
                 frame_size, pos, color = specs[index]
@@ -521,6 +681,8 @@ class _SlotIcon:
     def clear(self) -> None:
         for part in self.parts:
             part.hide()
+        self.label.setText("")
+        self.label.hide()
 
 
 @dataclass
@@ -537,6 +699,16 @@ class _EquipmentSlot:
         self.button["text"] = self.empty_label
         self.button["text_fg"] = MUTED_TEXT
         self.button["frameColor"] = (SLOT, SLOT, SLOT, SLOT)
+
+
+@dataclass
+class _SkillRow:
+    name_label: OnscreenText
+    detail_label: OnscreenText
+
+    def set_skill(self, label: str, state: Any) -> None:
+        self.name_label.setText(_skill_name_text(label))
+        self.detail_label.setText(_skill_detail_text(state))
 
 
 @dataclass
@@ -606,6 +778,20 @@ def _icon_frame(
     )
 
 
+def _icon_label(parent: Any) -> OnscreenText:
+    return OnscreenText(
+        parent=parent,
+        text="",
+        pos=(0.0, -0.014),
+        scale=ITEM_ICON_LABEL_TEXT_SCALE,
+        align=TextNode.ACenter,
+        fg=TEXT,
+        mayChange=True,
+        shadow=(0.045, -0.045),
+        shadow_fg=(0.02, 0.01, 0.0, 1.0),
+    )
+
+
 def _panel(
     frame_size: tuple[float, float, float, float],
     pos: tuple[float, float, float],
@@ -668,17 +854,73 @@ def _skill_icon(parent: Any, skill_id: str, pos: tuple[float, float, float]) -> 
         "attack": (0.62, 0.18, 0.14, 1.0),
         "strength": (0.72, 0.48, 0.18, 1.0),
         "defence": (0.26, 0.34, 0.68, 1.0),
+        "hitpoints": (0.72, 0.12, 0.18, 1.0),
+        "smithing": (0.42, 0.42, 0.38, 1.0),
     }.get(skill_id, SLOT_HILITE)
     _frame((-0.026, 0.026, -0.026, 0.026), pos, SLOT, parent)
     _frame((-0.017, 0.017, -0.017, 0.017), pos, color, parent)
 
 
-def _compact_skill(label: str, state: Any) -> str:
-    return f"{label}: lvl {state.level} ({state.xp} XP)"
+def _skill_name_text(label: str) -> str:
+    words = label.replace("_", " ").split()
+    return " ".join(word.capitalize() for word in words) if words else label
+
+
+def _skill_detail_text(state: Any) -> str:
+    return f"Level {state.level}  {state.xp} XP"
 
 
 def _item_name(items_data: dict[str, dict[str, object]], item_id: str) -> str:
     return str(items_data.get(item_id, {}).get("name") or item_id.replace("_", " "))
+
+
+def _inventory_hover_text(items_data: dict[str, dict[str, object]], item_id: str, quantity: int) -> str:
+    name = _item_name(items_data, item_id)
+    return name if quantity == 1 else f"{name} x{quantity}"
+
+
+def _item_icon_label(items_data: dict[str, dict[str, object]], item_id: str) -> str:
+    definition = items_data.get(item_id, {})
+    category = str(definition.get("category") or "")
+    name = _item_name(items_data, item_id).lower()
+    tool_for = str(definition.get("tool_for") or "")
+
+    if category == "currency":
+        return "$"
+    if category == "tool":
+        if tool_for == "woodcutting" or "axe" in item_id:
+            return "AXE"
+        if tool_for == "mining" or "pickaxe" in item_id:
+            return "PICK"
+        if "rod" in item_id:
+            return "ROD"
+        if "net" in item_id:
+            return "NET"
+        if tool_for == "cooking" or "pot" in item_id:
+            return "POT"
+        return "TOOL"
+    if category == "weapon":
+        return "SWD"
+    if category == "armor":
+        return "SHD"
+    if category == "wood":
+        return "LOG"
+    if category == "ore":
+        return "ORE"
+    if category == "bar":
+        return "BAR"
+    if category == "fish":
+        return "FISH"
+    return _abbreviated_item_label(name)
+
+
+def _abbreviated_item_label(name: str) -> str:
+    words = [word for word in name.replace("_", " ").split() if word]
+    if not words:
+        return "ITEM"
+    if len(words) == 1:
+        return words[0][:4].upper()
+    return "".join(word[0] for word in words[:4]).upper()
 
 
 def _equipment_slot_text(items_data: dict[str, dict[str, object]], item_id: str) -> str:
@@ -707,6 +949,8 @@ def _item_icon_specs(
         return _wood_icon_specs(item_id)
     if category == "ore":
         return _ore_icon_specs(item_id)
+    if category == "bar":
+        return _bar_icon_specs(item_id)
     if category == "fish":
         return _fish_icon_specs(name)
     return _generic_icon_specs()
@@ -796,6 +1040,15 @@ def _ore_icon_specs(item_id: str) -> list[IconSpec]:
         ((-0.020, 0.024, -0.016, 0.020), (0.002, 0, 0.017), color),
         ((-0.010, 0.014, -0.007, 0.007), (0.000, 0, 0.026), (0.82, 0.80, 0.70, 0.65)),
         ((-0.020, -0.006, -0.006, 0.008), (-0.003, 0, 0.009), (0.06, 0.05, 0.04, 0.45)),
+    ]
+
+
+def _bar_icon_specs(item_id: str) -> list[IconSpec]:
+    color = _metal_color(item_id.replace("_bar", "_sword"))
+    return [
+        ((-0.028, 0.028, -0.015, 0.015), (0.000, 0, 0.014), (0.16, 0.15, 0.14, 1.0)),
+        ((-0.024, 0.024, -0.010, 0.010), (0.000, 0, 0.017), color),
+        ((-0.016, 0.016, -0.003, 0.003), (0.000, 0, 0.024), (0.95, 0.88, 0.62, 0.55)),
     ]
 
 
@@ -940,6 +1193,7 @@ def _category_sort_key(items_data: dict[str, dict[str, object]], item_id: str) -
         "armor": 3,
         "wood": 4,
         "ore": 5,
-        "fish": 6,
-        "misc": 7,
+        "bar": 6,
+        "fish": 7,
+        "misc": 8,
     }.get(category, 9), category

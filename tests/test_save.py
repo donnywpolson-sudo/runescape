@@ -112,8 +112,9 @@ class SaveTests(unittest.TestCase):
     def test_default_save_includes_empty_combat_state(self) -> None:
         state = create_default_save("alice")
 
-        self.assertEqual(state["combat"], {"mobs": {}, "ground_items": []})
-        self.assertEqual(state["world"]["combat"], {"mobs": {}, "ground_items": []})
+        self.assertEqual(state["combat"], {"current_hitpoints": 10, "mobs": {}, "ground_items": []})
+        self.assertEqual(state["world"]["combat"], {"current_hitpoints": 10, "mobs": {}, "ground_items": []})
+        self.assertEqual(state["quest_state"], {})
 
     def test_default_save_includes_skilling_and_combat_skills(self) -> None:
         state = create_default_save("alice")
@@ -122,6 +123,8 @@ class SaveTests(unittest.TestCase):
         self.assertEqual(state["skills"]["attack"], {"xp": 0, "level": 1})
         self.assertEqual(state["skills"]["strength"], {"xp": 0, "level": 1})
         self.assertEqual(state["skills"]["defence"], {"xp": 0, "level": 1})
+        self.assertEqual(state["skills"]["hitpoints"], {"xp": 0, "level": 10})
+        self.assertEqual(state["skills"]["smithing"], {"xp": 0, "level": 1})
         self.assertNotIn("coins", state)
 
     def test_default_save_includes_starter_tools_and_equipment_slots(self) -> None:

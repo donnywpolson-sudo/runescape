@@ -15,6 +15,8 @@ STANDARD_SKILL_IDS = (
     "attack",
     "strength",
     "defence",
+    "hitpoints",
+    "smithing",
 )
 
 
@@ -30,10 +32,7 @@ class Skills:
         self.states: dict[str, SkillState] = {}
         for skill_id, definition in self.definitions.items():
             xp = int(definition.get("xp", 0))
-            self.states[skill_id] = SkillState(
-                level=int(definition.get("starting_level", level_for_xp(xp))),
-                xp=xp,
-            )
+            self.states[skill_id] = SkillState(level=self.level_for_xp(skill_id, xp), xp=xp)
 
     def add_skill(self, skill_id: str, xp: int = 0) -> SkillState:
         state = SkillState(level=self.level_for_xp(skill_id, xp), xp=xp)
@@ -66,6 +65,7 @@ class Skills:
         if xp < 0:
             raise ValueError("xp must be non-negative")
         thresholds = self.definitions.get(skill_id, {}).get("xp_thresholds")
+        starting_level = int(self.definitions.get(skill_id, {}).get("starting_level", 1))
         if thresholds:
             level = 1
             for threshold_level, threshold_xp in sorted(
@@ -73,8 +73,8 @@ class Skills:
             ):
                 if xp >= threshold_xp:
                     level = threshold_level
-            return level
-        return level_for_xp(xp)
+            return max(starting_level, level)
+        return max(starting_level, level_for_xp(xp))
 
     def action_xp(self, skill_id: str, action_id: str) -> int:
         return int(self.definitions[skill_id]["actions"][action_id]["xp"])
@@ -129,8 +129,9 @@ def _normalize_definitions(
 
 
 def _standard_definition(skill_id: str) -> dict[str, Any]:
+    starting_level = 10 if skill_id == "hitpoints" else 1
     return {
         "display_name": skill_id,
-        "starting_level": 1,
+        "starting_level": starting_level,
         "xp_thresholds": osrs_xp_thresholds(),
     }

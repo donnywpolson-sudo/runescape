@@ -1,0 +1,126 @@
+{
+  "smelting": [
+    {
+      "recipe_id": "bronze_bar",
+      "display_name": "Bronze bar",
+      "inputs": {"copper_ore": 1, "tin_ore": 1},
+      "output_item_id": "bronze_bar",
+      "output_quantity": 1,
+      "required_level": 1,
+      "xp_reward": 6,
+      "base_seconds": 1.8
+    },
+    {
+      "recipe_id": "iron_bar",
+      "display_name": "Iron bar",
+      "inputs": {"iron_ore": 1},
+      "output_item_id": "iron_bar",
+      "output_quantity": 1,
+      "required_level": 15,
+      "xp_reward": 13,
+      "base_seconds": 2.1
+    },
+    {
+      "recipe_id": "mithril_bar",
+      "display_name": "Mithril bar",
+      "inputs": {"mithril_ore": 1, "coal": 2},
+      "output_item_id": "mithril_bar",
+      "output_quantity": 1,
+      "required_level": 50,
+      "xp_reward": 30,
+      "base_seconds": 2.8
+    },
+    {
+      "recipe_id": "rune_bar",
+      "display_name": "Rune bar",
+      "inputs": {"runite_ore": 1, "coal": 4},
+      "output_item_id": "rune_bar",
+      "output_quantity": 1,
+      "required_level": 85,
+      "xp_reward": 50,
+      "base_seconds": 3.6
+    }
+  ],
+  "smithing": [
+    {
+      "recipe_id": "bronze_sword",
+      "display_name": "Bronze sword",
+      "inputs": {"bronze_bar": 1},
+      "output_item_id": "bronze_sword",
+      "output_quantity": 1,
+      "required_level": 1,
+      "xp_reward": 12,
+      "base_seconds": 2.0
+    },
+    {
+      "recipe_id": "bronze_shield",
+      "display_name": "Bronze shield",
+      "inputs": {"bronze_bar": 2},
+      "output_item_id": "bronze_shield",
+      "output_quantity": 1,
+      "required_level": 1,
+      "xp_reward": 24,
+      "base_seconds": 2.6
+    },
+    {
+      "recipe_id": "iron_sword",
+      "display_name": "Iron sword",
+      "inputs": {"iron_bar": 1},
+      "output_item_id": "iron_sword",
+      "output_quantity": 1,
+      "required_level": 15,
+      "xp_reward": 25,
+      "base_seconds": 2.4
+    },
+    {
+      "recipe_id": "iron_shield",
+      "display_name": "Iron shield",
+      "inputs": {"iron_bar": 2},
+      "output_item_id": "iron_shield",
+      "output_quantity": 1,
+      "required_level": 15,
+      "xp_reward": 50,
+      "base_seconds": 3.0
+    },
+    {
+      "recipe_id": "mithril_sword",
+      "display_name": "Mithril sword",
+      "inputs": {"mithril_bar": 1},
+      "output_item_id": "mithril_sword",
+      "output_quantity": 1,
+      "required_level": 50,
+      "xp_reward": 50,
+      "base_seconds": 3.0
+    },
+    {
+      "recipe_id": "mithril_shield",
+      "display_name": "Mithril shield",
+      "inputs": {"mithril_bar": 2},
+      "output_item_id": "mithril_shield",
+      "output_quantity": 1,
+      "required_level": 50,
+      "xp_reward": 100,
+      "base_seconds": 3.6
+    },
+    {
+      "recipe_id": "rune_sword",
+      "display_name": "Rune sword",
+      "inputs": {"rune_bar": 1},
+      "output_item_id": "rune_sword",
+      "output_quantity": 1,
+      "required_level": 85,
+      "xp_reward": 75,
+      "base_seconds": 3.8
+    },
+    {
+      "recipe_id": "rune_shield",
+      "display_name": "Rune shield",
+      "inputs": {"rune_bar": 2},
+      "output_item_id": "rune_shield",
+      "output_quantity": 1,
+      "required_level": 85,
+      "xp_reward": 150,
+      "base_seconds": 4.5
+    }
+  ]
+}

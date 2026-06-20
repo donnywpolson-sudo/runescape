@@ -25,7 +25,9 @@ from game.systems.equipment import Equipment
 from game.systems.gathering import GatheringSystem, ResourceNodeState
 from game.systems.inventory import COINS_ITEM_ID, Inventory
 from game.systems.interaction import InteractionManager
+from game.systems.quest import QuestSystem
 from game.systems.shop import Shop
+from game.systems.smithing import SmithingSystem
 from game.systems.skills import Skills
 from game.ui.login import LoginScreen
 from game.ui.hud import Hud
@@ -53,6 +55,7 @@ class GameApp(ShowBase):
             self.items_data = _load_json(settings.DATA_DIR / "items.json")
             self.skills_data = _load_json(settings.DATA_DIR / "skills.json")
             self.world_data = _load_json(settings.DATA_DIR / "world.json")
+            self.recipes_data = _load_json(settings.DATA_DIR / "recipes.json")
         except Exception:
             self.state = GameState.ERROR
             LOGGER.exception("Game data failed to load")
@@ -82,7 +85,9 @@ class GameApp(ShowBase):
         self.equipment = Equipment(self.items_data, self.inventory, self.skills)
         self.gathering = GatheringSystem(self.world_map.resource_nodes, self.inventory, self.skills)
         self.cooking = CookingSystem(self.items_data, self.inventory, self.skills)
-        self.combat = CombatSystem(self.world_map.mob_definitions)
+        self.smithing = SmithingSystem(self.recipes_data, self.inventory, self.skills)
+        self.combat = CombatSystem(self.world_map.mob_definitions, skills=self.skills)
+        self.quest = QuestSystem()
         self.shop = Shop(self.items_data, self.world_map.shop_stock)
         self.game_time = GameTime()
 
@@ -133,9 +138,14 @@ class GameApp(ShowBase):
             gathering=self.gathering,
             cooking=self.cooking,
             combat=self.combat,
+            smithing=self.smithing,
             open_bank=self.open_bank,
             open_shop=self.open_shop,
             train_combat=self.train_combat,
+            talk_to_npc=self.talk_to_npc,
+            on_cooking_result=self.on_cooking_result,
+            on_smithing_result=self.on_smithing_result,
+            on_combat_result=self.on_combat_result,
         )
 
         self.input = InputManager(self)
@@ -162,6 +172,8 @@ class GameApp(ShowBase):
         self.game_camera.zoom(direction * settings.CAMERA_ZOOM_STEP)
 
     def on_left_click(self) -> None:
+        if hasattr(self, "hud"):
+            self.hud.hide_context_menu()
         tile, _ = ground_tile_from_mouse(self, self.world_map.grid)
         if tile is None:
             self.set_feedback("No ground selected")
@@ -181,7 +193,15 @@ class GameApp(ShowBase):
             return
         self.selected_text = f"Selected object: {obj.kind} ({obj.object_id})"
         self._show_marker(self.selection_marker, obj.tile)
-        self.interactions.interact_with(obj)
+        actions = [(action.action_id, action.label) for action in self.interactions.get_actions(obj)]
+        self.hud.show_context_menu(actions, lambda action_id, object_id=obj.object_id: self._perform_context_action(object_id, action_id))
+
+    def _perform_context_action(self, object_id: str, action_id: str) -> None:
+        obj = self.world_map.get_object(object_id)
+        if obj is None:
+            self.set_feedback("Nothing to interact with")
+            return
+        self.interactions.perform_action(action_id, obj)
 
     def save_game(self) -> None:
         if self.current_username is None:
@@ -224,9 +244,11 @@ class GameApp(ShowBase):
         time_state = self.game_time.to_dict()
         resource_nodes = self.gathering.to_dict()
         combat_state = {
+            "current_hitpoints": self.combat.current_hitpoints,
             "mobs": self.combat.to_dict(),
             "ground_items": self.world_map.ground_items_to_dict(),
         }
+        quest_state = self.quest.to_dict()
         return {
             "version": save.SAVE_VERSION,
             "username": self.current_username,
@@ -236,6 +258,7 @@ class GameApp(ShowBase):
             "equipment": self.equipment.to_dict(),
             "skills": self.skills.to_dict(),
             "combat": combat_state,
+            "quest_state": quest_state,
             "chopped_trees": chopped_trees,
             "depleted_resources": depleted_resources,
             "time": time_state,
@@ -244,6 +267,7 @@ class GameApp(ShowBase):
                 "depleted_resources": depleted_resources,
                 "resource_nodes": resource_nodes,
                 "combat": combat_state,
+                "quest_state": quest_state,
                 **time_state,
             },
             "camera": self.game_camera.to_dict(),
@@ -259,6 +283,7 @@ class GameApp(ShowBase):
         self.equipment.inventory = self.inventory
         self.equipment.skills = self.skills
         self.equipment.load_dict(state.get("equipment", {}))
+        self._sync_combat_bonuses()
         self.game_time.load_dict(state.get("time", world_state))
         self.game_camera.load_dict(state.get("camera", {}))
         resource_states = self._resource_states_from_save(state, world_state)
@@ -268,8 +293,14 @@ class GameApp(ShowBase):
         self.cooking.inventory = self.inventory
         self.cooking.skills = self.skills
         self.cooking.cancel_pending()
+        self.smithing.inventory = self.inventory
+        self.smithing.skills = self.skills
+        self.smithing.cancel_pending()
         combat_state = self._combat_state_from_save(state, world_state)
+        self.combat.skills = self.skills
+        self.combat.load_player_hitpoints(combat_state.get("current_hitpoints"))
         self.combat.load_dict(combat_state.get("mobs", {}))
+        self.quest.load_dict(self._quest_state_from_save(state, world_state))
         self.world_map.apply_resource_states(self.gathering.states)
         self.world_map.apply_mob_states(self.combat.states)
         ground_items = combat_state.get("ground_items", [])
@@ -278,6 +309,7 @@ class GameApp(ShowBase):
         self.interactions.skills = self.skills
         self.interactions.gathering = self.gathering
         self.interactions.cooking = self.cooking
+        self.interactions.smithing = self.smithing
         self.interactions.combat = self.combat
 
     def open_bank(self) -> None:
@@ -299,16 +331,20 @@ class GameApp(ShowBase):
         self.hud.close_shop()
 
     def deposit_bank_item(self, item_id: str) -> None:
-        deposited = self.bank.deposit(self.inventory, item_id)
+        quantity = self.hud.transaction_quantity(self.inventory.count(item_id))
+        deposited = self.bank.deposit(self.inventory, item_id, quantity) if quantity else 0
         if deposited:
+            self.quest.record("used_bank")
             self.set_feedback(f"Deposited {deposited} {self._item_name(item_id)}")
         else:
             self.set_feedback(f"No {self._item_name(item_id)} to deposit")
         self._update_hud()
 
     def withdraw_bank_item(self, item_id: str) -> None:
-        withdrawn = self.bank.withdraw(self.inventory, item_id)
+        quantity = self.hud.transaction_quantity(self.bank.count(item_id))
+        withdrawn = self.bank.withdraw(self.inventory, item_id, quantity) if quantity else 0
         if withdrawn:
+            self.quest.record("used_bank")
             self.set_feedback(f"Withdrew {withdrawn} {self._item_name(item_id)}")
         else:
             self.set_feedback(f"No {self._item_name(item_id)} in bank")
@@ -318,14 +354,17 @@ class GameApp(ShowBase):
         deposited = self.bank.deposit_all(self.inventory)
         total = sum(deposited.values())
         if total:
+            self.quest.record("used_bank")
             self.set_feedback(f"Deposited {total} items")
         else:
             self.set_feedback("No items to deposit")
         self._update_hud()
 
     def sell_inventory_item(self, item_id: str) -> None:
-        sold, coins = self.shop.sell_item(self.inventory, item_id)
+        quantity = self.hud.transaction_quantity(self.inventory.count(item_id))
+        sold, coins = self.shop.sell_item(self.inventory, item_id, quantity) if quantity else (0, 0)
         if sold:
+            self.quest.record("used_shop")
             self._add_coins(coins)
             if self.interactions.selected_item_id == item_id and self.inventory.count(item_id) <= 0:
                 self.interactions.selected_item_id = None
@@ -335,13 +374,19 @@ class GameApp(ShowBase):
         self._update_hud()
 
     def buy_shop_item(self, item_id: str) -> None:
-        result = self.shop.buy(self.inventory, item_id)
+        stock_item = self.shop.stock.get(item_id)
+        affordable = self.inventory.count(COINS_ITEM_ID) // stock_item.price if stock_item is not None else 0
+        quantity = self.hud.transaction_quantity(affordable)
+        result = self.shop.buy(self.inventory, item_id, quantity) if quantity else self.shop.buy(self.inventory, item_id, 1)
+        if result.success:
+            self.quest.record("used_shop")
         self.set_feedback(result.feedback)
         self._update_hud()
 
     def sell_all_shop_items(self) -> None:
         sold, coins = self.shop.sell_all(self.inventory)
         if sold:
+            self.quest.record("used_shop")
             self._add_coins(coins)
             if self.interactions.selected_item_id and self.inventory.count(self.interactions.selected_item_id) <= 0:
                 self.interactions.selected_item_id = None
@@ -351,18 +396,37 @@ class GameApp(ShowBase):
         self._update_hud()
 
     def select_inventory_item(self, item_id: str) -> None:
-        if self.equipment.is_equippable(item_id):
+        definition = self.items_data.get(item_id, {})
+        heal_amount = int(definition.get("heal_amount", 0) or 0)
+        if heal_amount > 0:
+            self.eat_food(item_id, heal_amount)
+        elif self.equipment.is_equippable(item_id):
             result = self.equipment.equip(item_id)
             self.set_feedback(result.feedback)
+            if result.success and definition.get("equip_slot") == "weapon":
+                self.quest.record("equipped_weapon")
             if result.success and self.interactions.selected_item_id == item_id and self.inventory.count(item_id) <= 0:
                 self.interactions.selected_item_id = None
+            if result.success:
+                self._sync_combat_bonuses()
         else:
             self.interactions.select_inventory_item(item_id)
         self._update_hud()
 
+    def eat_food(self, item_id: str, heal_amount: int) -> None:
+        if self.inventory.count(item_id) <= 0:
+            self.set_feedback(f"No {self._item_name(item_id)}")
+            return
+        healed = self.combat.heal(heal_amount)
+        self.inventory.remove(item_id, 1)
+        self.quest.record("ate_food")
+        self.set_feedback(f"Ate {self._item_name(item_id)}: healed {healed} HP")
+
     def unequip_slot(self, slot: str) -> None:
         result = self.equipment.unequip(slot)
         self.set_feedback(result.feedback)
+        if result.success:
+            self._sync_combat_bonuses()
         self._update_hud()
 
     def train_combat(self) -> None:
@@ -372,23 +436,66 @@ class GameApp(ShowBase):
         self.set_feedback("Trained combat: +20 attack XP, +20 strength XP, +20 defence XP")
         self._update_hud()
 
+    def talk_to_npc(self, obj) -> None:
+        if obj.quest_id == "starter_path":
+            result = self.quest.talk_to_starter()
+            if result.completed:
+                self.inventory.add(COINS_ITEM_ID, 50)
+                self.skills.add_xp("smithing", 40)
+            self.set_feedback(result.feedback)
+            self._update_hud()
+            return
+        self.set_feedback(f"{obj.display_name}: Hello.")
+
+    def on_cooking_result(self, result: object) -> None:
+        if getattr(result, "success", False) and getattr(result, "cooked_item_id", None):
+            self.quest.record("cooked_food")
+
+    def on_smithing_result(self, result: object) -> None:
+        if not getattr(result, "success", False):
+            return
+        item_id = str(getattr(result, "item_id", "") or "")
+        if item_id.endswith("_bar"):
+            self.quest.record("smelted_bar")
+        elif item_id:
+            self.quest.record("smithed_gear")
+
+    def on_combat_result(self, result: object) -> None:
+        if getattr(result, "killed", False):
+            self.quest.record("defeated_enemy")
+        if getattr(result, "player_dead", False):
+            self.player.set_position_tile(self.world_map.player_start)
+            self.combat.reset_player()
+            self.set_feedback("You died and respawned at the crossroads.")
+        self._update_hud()
+
     def _update_hud(self) -> None:
         self.hud.update(
             account=self.current_username or "",
-            time_text=self.game_time.display(),
+            time_text=f"{self.game_time.display()}\nHP: {self.combat.current_hitpoints}/{self.combat.max_hitpoints()}",
             selected_item_id=self.interactions.selected_item_id,
             inventory=self.inventory.to_dict(),
             bank=self.bank.to_dict(),
             equipment=self.equipment.to_dict(),
             skills=self.skills,
             selected_text=self.selected_text,
-            shop_stock=self.world_map.shop_stock,
+            shop_stock=[stock_item.__dict__ for stock_item in self.shop.stock_items()],
             gather_progress=self._activity_progress(),
         )
 
     def _add_coins(self, amount: int) -> None:
         if amount > 0:
             self.inventory.add(COINS_ITEM_ID, amount)
+
+    def _sync_combat_bonuses(self) -> None:
+        equipment = self.equipment.to_dict()
+        weapon = self.items_data.get(equipment.get("weapon", ""), {})
+        shield = self.items_data.get(equipment.get("shield", ""), {})
+        self.combat.damage_per_hit = max(
+            1,
+            1 + int(weapon.get("attack_bonus", 0) or 0) + int(weapon.get("strength_bonus", 0) or 0),
+        )
+        self.combat.defence_bonus = int(shield.get("defence_bonus", 0) or 0)
 
     def _item_name(self, item_id: str) -> str:
         definition = self.items_data.get(item_id, {})
@@ -440,6 +547,14 @@ class GameApp(ShowBase):
     ) -> dict[str, Any]:
         combat_state = state.get("combat", world_state.get("combat", {}))
         return combat_state if isinstance(combat_state, dict) else {}
+
+    def _quest_state_from_save(
+        self,
+        state: dict[str, Any],
+        world_state: dict[str, Any],
+    ) -> dict[str, Any]:
+        quest_state = state.get("quest_state", world_state.get("quest_state", {}))
+        return quest_state if isinstance(quest_state, dict) else {}
 
     def _configure_window(self) -> None:
         props = WindowProperties()
@@ -494,6 +609,9 @@ class GameApp(ShowBase):
         if pending is None:
             pending = self.cooking.pending
             remaining_seconds = self.cooking.remaining_seconds
+        if pending is None:
+            pending = self.smithing.pending
+            remaining_seconds = self.smithing.remaining_seconds
         if pending is None:
             pending = self.combat.pending
             remaining_seconds = self.combat.remaining_seconds

@@ -31,6 +31,7 @@ class WorldObject:
     quantity_reward: int = 1
     item_id: str = ""
     quantity: int = 0
+    quest_id: str = ""
     depleted_state: str = "depleted"
     respawn_seconds: float | None = None
     depleted: bool = False
@@ -41,7 +42,17 @@ class WorldObject:
         if not self.active:
             return False
         return (
-            self.kind in {"shop", "bank", "cooking_range", "combat_dummy", "mob", "ground_item"}
+            self.kind in {
+                "shop",
+                "bank",
+                "cooking_range",
+                "combat_dummy",
+                "mob",
+                "ground_item",
+                "furnace",
+                "anvil",
+                "npc",
+            }
             or self.is_resource_node
             or self.depleted
         )

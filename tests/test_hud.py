@@ -10,6 +10,7 @@ class FakeWidget:
         self.hidden = False
         self.text = self.options.get("text", "")
         self.pos = self.options.get("pos")
+        self.bindings = {}
 
     def setText(self, text: str) -> None:
         self.text = text
@@ -41,6 +42,13 @@ class FakeWidget:
         command = self.options.get("command")
         if command is not None:
             command()
+
+    def bind(self, event, command, extraArgs=None) -> None:
+        self.bindings[event] = (command, list(extraArgs or []))
+
+    def trigger(self, event) -> None:
+        command, extra_args = self.bindings[event]
+        command(*extra_args, None)
 
 
 class FakeOnscreenText(FakeWidget):
@@ -87,9 +95,41 @@ def test_inventory_grid_has_fixed_slots_and_populates_in_category_order(monkeypa
     assert ui.inventory_slots[1].button.text == "3"
     assert ui.inventory_slots[0].button.options["text_scale"] == hud.INVENTORY_QUANTITY_TEXT_SCALE
     assert any(not part.hidden for part in ui.inventory_slots[0].icon.parts)
+    assert ui.inventory_slots[0].icon.label.text == "$"
+    assert ui.inventory_slots[1].icon.label.text == "LOG"
+    assert ui.inventory_slots[2].icon.label.text == "ORE"
+    assert ui.inventory_slots[3].icon.label.text == "FISH"
     assert ui.inventory_slots[5].item_id is None
     assert ui.inventory_slots[5].button.text == ""
     assert all(part.hidden for part in ui.inventory_slots[5].icon.parts)
+    assert ui.inventory_slots[5].icon.label.hidden is True
+
+
+def test_inventory_slot_hover_shows_item_name_without_world_hover_override(monkeypatch) -> None:
+    _install_hud_fakes(monkeypatch)
+    ui = hud.Hud(_items())
+    ui.set_feedback("Ready")
+    ui.set_hover_text("Grass")
+    ui.update(
+        account="test",
+        time_text="Day 1 08:00",
+        selected_text="Selected: none",
+        inventory={"raw_shrimp": 4},
+        bank={},
+        skills=FakeSkills(),
+    )
+
+    ui.inventory_slots[0].button.trigger(hud.DGG.ENTER)
+
+    assert ui.feedback.text == "Raw shrimp x4"
+
+    ui.set_hover_text("Tree")
+
+    assert ui.feedback.text == "Raw shrimp x4"
+
+    ui.inventory_slots[0].button.trigger(hud.DGG.EXIT)
+
+    assert ui.feedback.text == "Tree"
 
 
 def test_inventory_slots_use_select_item_callback(monkeypatch) -> None:
@@ -111,6 +151,57 @@ def test_inventory_slots_use_select_item_callback(monkeypatch) -> None:
     assert selected == ["raw_shrimp"]
 
 
+def test_feedback_routes_to_chatbox_and_keeps_latest_messages(monkeypatch) -> None:
+    _install_hud_fakes(monkeypatch)
+    ui = hud.Hud(_items())
+
+    for index in range(10):
+        ui.set_feedback(f"Message {index}")
+
+    assert ui.feedback.text == "Message 9"
+    assert ui.chat_messages == [f"Message {index}" for index in range(2, 10)]
+    assert [line.text for line in ui.chat_lines] == [f"Message {index}" for index in range(2, 10)]
+
+
+def test_quantity_mode_caps_transaction_amount(monkeypatch) -> None:
+    _install_hud_fakes(monkeypatch)
+    ui = hud.Hud(_items())
+
+    assert ui.transaction_quantity(12) == 12
+
+    ui.set_quantity_mode("5")
+    assert ui.transaction_quantity(12) == 5
+    assert ui.transaction_quantity(3) == 3
+
+    ui.set_quantity_mode("10")
+    assert ui.transaction_quantity(12) == 10
+
+    ui.set_quantity_mode("bad")
+    assert ui.transaction_quantity(12) == 10
+
+
+def test_context_menu_dispatches_selected_action_and_hides(monkeypatch) -> None:
+    _install_hud_fakes(monkeypatch)
+    selected: list[str] = []
+    ui = hud.Hud(_items())
+
+    ui.show_context_menu(
+        [("talk", "Talk-to Guide"), ("examine", "Examine Guide")],
+        selected.append,
+        pos=(0.12, 0, 0.22),
+    )
+
+    assert ui.context_panel.hidden is False
+    assert ui.context_panel.pos == (0.12, 0, 0.22)
+    assert [button.text for button in ui.context_buttons] == ["Talk-to Guide", "Examine Guide"]
+
+    ui.context_buttons[0].click()
+
+    assert selected == ["talk"]
+    assert ui.context_panel.hidden is True
+    assert ui.context_buttons == []
+
+
 def test_side_tabs_switch_visible_content(monkeypatch) -> None:
     _install_hud_fakes(monkeypatch)
     ui = hud.Hud(_items())
@@ -127,6 +218,27 @@ def test_side_tabs_switch_visible_content(monkeypatch) -> None:
     assert ui.tab_frames[hud.CLOTHES_TAB].hidden is True
     assert ui.tab_frames[hud.SKILLS_TAB].hidden is False
     assert ui.tab_buttons[hud.SKILLS_TAB].options["frameColor"][0] == hud.SLOT_HILITE
+
+
+def test_skills_tab_uses_larger_two_line_skill_rows(monkeypatch) -> None:
+    _install_hud_fakes(monkeypatch)
+    ui = hud.Hud(_items())
+
+    ui.update(
+        account="test",
+        time_text="Day 1 08:00",
+        selected_text="Selected: none",
+        inventory={},
+        bank={},
+        skills=FakeSkills(),
+    )
+
+    row = ui.skill_rows["woodcutting"]
+    assert row.name_label.text == "Woodcutting"
+    assert row.name_label.options["scale"] == hud.SKILL_NAME_TEXT_SCALE
+    assert row.detail_label.text == "Level 1  0 XP"
+    assert row.detail_label.options["scale"] == hud.SKILL_DETAIL_TEXT_SCALE
+    assert ui.tab_buttons[hud.SKILLS_TAB].options["scale"] == hud.SIDE_TAB_TEXT_SCALE
 
 
 def test_selected_inventory_slot_is_highlighted(monkeypatch) -> None:
@@ -228,6 +340,35 @@ def test_shop_rows_show_stock_and_buy_callback(monkeypatch) -> None:
     ui.shop_rows["bronze_axe"].action_button.click()
 
     assert bought == ["bronze_axe"]
+
+
+def test_shop_rows_include_inventory_sell_actions(monkeypatch) -> None:
+    _install_hud_fakes(monkeypatch)
+    sold: list[str] = []
+    items = {
+        **_items(),
+        "bronze_axe": {"name": "Bronze axe", "category": "tool", "sell_price": 8},
+        "logs": {"name": "Logs", "category": "wood", "sell_price": 3},
+    }
+    ui = hud.Hud(items, on_sell_item=sold.append)
+
+    ui.update(
+        account="test",
+        time_text="Day 1 08:00",
+        selected_text="Selected: none",
+        inventory={"coins": 30, "logs": 2},
+        bank={},
+        skills=FakeSkills(),
+        shop_stock=[{"item_id": "bronze_axe", "price": 25}],
+    )
+
+    assert list(ui.shop_rows) == ["bronze_axe", "sell:logs"]
+    assert ui.shop_rows["sell:logs"].quantity_label.text == "2"
+    assert ui.shop_rows["sell:logs"].price_label.text == "3"
+
+    ui.shop_rows["sell:logs"].action_button.click()
+
+    assert sold == ["logs"]
 
 
 class FakeSkills:

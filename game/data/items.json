@@ -7,86 +7,111 @@
   "bronze_axe": {
     "name": "Bronze axe",
     "category": "tool",
+    "buy_price": 25,
     "sell_price": 8,
     "tool_for": "woodcutting"
   },
   "bronze_pickaxe": {
     "name": "Bronze pickaxe",
     "category": "tool",
+    "buy_price": 25,
     "sell_price": 8,
     "tool_for": "mining"
   },
   "fishing_rod": {
     "name": "Fishing rod",
     "category": "tool",
+    "buy_price": 18,
     "sell_price": 6,
     "tool_for": "fishing"
   },
   "small_fishing_net": {
     "name": "Small fishing net",
     "category": "tool",
+    "buy_price": 18,
     "sell_price": 5,
     "tool_for": "fishing"
   },
   "cooking_pot": {
     "name": "Cooking pot",
     "category": "tool",
+    "buy_price": 15,
     "sell_price": 4,
     "tool_for": "cooking"
   },
   "bronze_sword": {
     "name": "Bronze sword",
     "category": "weapon",
+    "buy_price": 35,
     "sell_price": 12,
+    "attack_bonus": 1,
+    "strength_bonus": 1,
     "equip_slot": "weapon",
     "required_skills": {"attack": 1}
   },
   "iron_sword": {
     "name": "Iron sword",
     "category": "weapon",
+    "buy_price": 90,
     "sell_price": 35,
+    "attack_bonus": 2,
+    "strength_bonus": 2,
     "equip_slot": "weapon",
     "required_skills": {"attack": 15}
   },
   "mithril_sword": {
     "name": "Mithril sword",
     "category": "weapon",
+    "buy_price": 220,
     "sell_price": 90,
+    "attack_bonus": 4,
+    "strength_bonus": 4,
     "equip_slot": "weapon",
     "required_skills": {"attack": 30, "strength": 20}
   },
   "rune_sword": {
     "name": "Rune sword",
     "category": "weapon",
+    "buy_price": 520,
     "sell_price": 220,
+    "attack_bonus": 6,
+    "strength_bonus": 6,
     "equip_slot": "weapon",
     "required_skills": {"attack": 40, "strength": 40}
   },
   "bronze_shield": {
     "name": "Bronze shield",
     "category": "armor",
+    "buy_price": 30,
     "sell_price": 10,
+    "defence_bonus": 1,
     "equip_slot": "shield",
     "required_skills": {"defence": 1}
   },
   "iron_shield": {
     "name": "Iron shield",
     "category": "armor",
+    "buy_price": 75,
     "sell_price": 30,
+    "defence_bonus": 2,
     "equip_slot": "shield",
     "required_skills": {"defence": 15}
   },
   "mithril_shield": {
     "name": "Mithril shield",
     "category": "armor",
+    "buy_price": 200,
     "sell_price": 80,
+    "defence_bonus": 4,
     "equip_slot": "shield",
     "required_skills": {"defence": 30}
   },
   "rune_shield": {
     "name": "Rune shield",
     "category": "armor",
+    "buy_price": 480,
     "sell_price": 200,
+    "defence_bonus": 6,
     "equip_slot": "shield",
     "required_skills": {"defence": 40}
   },
@@ -130,6 +155,11 @@
     "category": "ore",
     "sell_price": 5
   },
+  "tin_ore": {
+    "name": "Tin ore",
+    "category": "ore",
+    "sell_price": 5
+  },
   "iron_ore": {
     "name": "Iron ore",
     "category": "ore",
@@ -155,6 +185,26 @@
     "category": "ore",
     "sell_price": 80
   },
+  "bronze_bar": {
+    "name": "Bronze bar",
+    "category": "bar",
+    "sell_price": 10
+  },
+  "iron_bar": {
+    "name": "Iron bar",
+    "category": "bar",
+    "sell_price": 20
+  },
+  "mithril_bar": {
+    "name": "Mithril bar",
+    "category": "bar",
+    "sell_price": 55
+  },
+  "rune_bar": {
+    "name": "Rune bar",
+    "category": "bar",
+    "sell_price": 140
+  },
   "raw_shrimp": {
     "name": "Raw shrimp",
     "category": "fish",
@@ -167,6 +217,7 @@
   "cooked_shrimp": {
     "name": "Cooked shrimp",
     "category": "fish",
+    "heal_amount": 3,
     "sell_price": 7
   },
   "raw_trout": {
@@ -181,6 +232,7 @@
   "cooked_trout": {
     "name": "Cooked trout",
     "category": "fish",
+    "heal_amount": 7,
     "sell_price": 12
   },
   "raw_salmon": {
@@ -195,6 +247,7 @@
   "cooked_salmon": {
     "name": "Cooked salmon",
     "category": "fish",
+    "heal_amount": 9,
     "sell_price": 17
   },
   "raw_lobster": {
@@ -209,6 +262,7 @@
   "cooked_lobster": {
     "name": "Cooked lobster",
     "category": "fish",
+    "heal_amount": 12,
     "sell_price": 26
   },
   "raw_swordfish": {
@@ -223,6 +277,7 @@
   "cooked_swordfish": {
     "name": "Cooked swordfish",
     "category": "fish",
+    "heal_amount": 14,
     "sell_price": 36
   },
   "raw_monkfish": {
@@ -237,6 +292,7 @@
   "cooked_monkfish": {
     "name": "Cooked monkfish",
     "category": "fish",
+    "heal_amount": 16,
     "sell_price": 55
   },
   "raw_shark": {
@@ -251,6 +307,7 @@
   "cooked_shark": {
     "name": "Cooked shark",
     "category": "fish",
+    "heal_amount": 20,
     "sell_price": 95
   },
   "raw_anglerfish": {
@@ -265,6 +322,7 @@
   "cooked_anglerfish": {
     "name": "Cooked anglerfish",
     "category": "fish",
+    "heal_amount": 22,
     "sell_price": 130
   },
   "wooden_splinters": {

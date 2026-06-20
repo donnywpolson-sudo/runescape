@@ -113,6 +113,41 @@ class WorldMap:
             )
             self.objects[obj.object_id] = obj
 
+        furnace = data.get("furnace")
+        if furnace:
+            obj = WorldObject(
+                furnace["id"],
+                "furnace",
+                _tile(furnace["tile"]),
+                blocking=True,
+                display_name=str(furnace.get("name") or "Furnace"),
+            )
+            self.objects[obj.object_id] = obj
+
+        anvil = data.get("anvil")
+        if anvil:
+            obj = WorldObject(
+                anvil["id"],
+                "anvil",
+                _tile(anvil["tile"]),
+                blocking=True,
+                display_name=str(anvil.get("name") or "Anvil"),
+            )
+            self.objects[obj.object_id] = obj
+
+        for raw_npc in data.get("npcs", []) or []:
+            if not isinstance(raw_npc, dict):
+                continue
+            obj = WorldObject(
+                str(raw_npc["id"]),
+                "npc",
+                _tile(raw_npc["tile"]),
+                blocking=True,
+                display_name=str(raw_npc.get("name") or "Villager"),
+                quest_id=str(raw_npc.get("quest_id") or ""),
+            )
+            self.objects[obj.object_id] = obj
+
         for mob in self.mob_definitions.values():
             obj = WorldObject(
                 mob.mob_id,

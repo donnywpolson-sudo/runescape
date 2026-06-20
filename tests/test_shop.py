@@ -33,6 +33,17 @@ def test_shop_can_still_sell_one_item_type() -> None:
     assert inventory.to_dict() == {"raw_shrimp": 3}
 
 
+def test_shop_can_sell_limited_quantity() -> None:
+    inventory = Inventory({"logs": 5})
+    shop = Shop({"logs": {"sell_price": 3}})
+
+    sold, coins = shop.sell_item(inventory, "logs", 2)
+
+    assert sold == 2
+    assert coins == 6
+    assert inventory.to_dict() == {"logs": 3}
+
+
 def test_shop_buy_adds_stock_item_and_spends_coins() -> None:
     inventory = Inventory({"coins": 30})
     shop = Shop(
@@ -48,6 +59,24 @@ def test_shop_buy_adds_stock_item_and_spends_coins() -> None:
     assert result.success is True
     assert result.coins_spent == 25
     assert inventory.to_dict() == {"coins": 5, "bronze_axe": 1}
+
+
+def test_shop_buy_supports_limited_quantity() -> None:
+    inventory = Inventory({"coins": 80})
+    shop = Shop(
+        {
+            "coins": {"name": "Coins", "sell_price": 0},
+            "bronze_axe": {"name": "Bronze axe", "sell_price": 8},
+        },
+        [{"item_id": "bronze_axe", "price": 25}],
+    )
+
+    result = shop.buy(inventory, "bronze_axe", 3)
+
+    assert result.success is True
+    assert result.coins_spent == 75
+    assert result.quantity == 3
+    assert inventory.to_dict() == {"coins": 5, "bronze_axe": 3}
 
 
 def test_shop_buy_requires_enough_coins() -> None:

@@ -152,6 +152,25 @@ def test_data_validation_accepts_shop_stock_fishing_water_and_mobs() -> None:
     validate_all(_items(), _skills(), world)
 
 
+def test_data_validation_accepts_recipes_npcs_and_smithing_stations() -> None:
+    world = _world()
+    world["furnace"] = {"id": "furnace_01", "tile": [16, 16]}
+    world["anvil"] = {"id": "anvil_01", "tile": [17, 16]}
+    world["npcs"] = [{"id": "guide_01", "name": "Village Guide", "tile": [18, 16], "quest_id": "starter_path"}]
+
+    validate_all(_items(), _skills(), world, _recipes())
+
+
+def test_data_validation_rejects_unknown_recipe_input() -> None:
+    recipes = _recipes()
+    recipes["smelting"][0]["inputs"] = {"missing_ore": 1}
+
+    with pytest.raises(DataValidationError) as exc:
+        validate_all(_items(), _skills(), _world(), recipes)
+
+    assert "unknown input item 'missing_ore'" in str(exc.value)
+
+
 def test_data_validation_rejects_fishing_node_off_water() -> None:
     world = _world()
     world["water_tiles"] = [[4, 4]]
@@ -195,6 +214,16 @@ def _items() -> dict[str, dict[str, object]]:
         "bronze_axe": {"name": "Bronze axe", "category": "tool", "sell_price": 8},
         "logs": {"name": "Logs", "category": "wood", "sell_price": 3},
         "copper_ore": {"name": "Copper ore", "category": "ore", "sell_price": 5},
+        "tin_ore": {"name": "Tin ore", "category": "ore", "sell_price": 5},
+        "bronze_bar": {"name": "Bronze bar", "category": "bar", "sell_price": 12},
+        "bronze_sword": {
+            "name": "Bronze sword",
+            "category": "weapon",
+            "sell_price": 18,
+            "equip_slot": "weapon",
+            "attack_bonus": 1,
+            "strength_bonus": 1,
+        },
         "raw_shrimp": {
             "name": "Raw shrimp",
             "category": "fish",
@@ -229,6 +258,11 @@ def _skills() -> dict[str, dict[str, object]]:
         },
         "cooking": {
             "display_name": "Cooking",
+            "starting_level": 1,
+            "xp_thresholds": thresholds,
+        },
+        "smithing": {
+            "display_name": "Smithing",
             "starting_level": 1,
             "xp_thresholds": thresholds,
         },
@@ -289,4 +323,33 @@ def _mob() -> dict[str, object]:
         "respawn_seconds": 5.0,
         "position": [12, 12],
         "drops": [{"item_id": "wooden_splinters", "quantity": 1}],
+    }
+
+
+def _recipes() -> dict[str, object]:
+    return {
+        "smelting": [
+            {
+                "recipe_id": "bronze_bar",
+                "display_name": "Bronze bar",
+                "inputs": {"copper_ore": 1, "tin_ore": 1},
+                "output_item_id": "bronze_bar",
+                "output_quantity": 1,
+                "required_level": 1,
+                "xp_reward": 6,
+                "base_seconds": 1.8,
+            }
+        ],
+        "smithing": [
+            {
+                "recipe_id": "bronze_sword",
+                "display_name": "Bronze sword",
+                "inputs": {"bronze_bar": 1},
+                "output_item_id": "bronze_sword",
+                "output_quantity": 1,
+                "required_level": 1,
+                "xp_reward": 12,
+                "base_seconds": 2.0,
+            }
+        ],
     }
