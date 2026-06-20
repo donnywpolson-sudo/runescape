@@ -5,10 +5,12 @@ import unittest
 from pathlib import Path
 
 from game.engine.save import (
+    SAVE_VERSION,
     create_default_save,
     get_save_path,
     load_game,
     migrate_legacy_coins_to_inventory,
+    migrate_save_state,
     save_game,
 )
 
@@ -173,6 +175,68 @@ class SaveTests(unittest.TestCase):
 
         self.assertEqual(migrated["inventory"], {"coins": 25})
         self.assertNotIn("coins", migrated)
+
+    def test_legacy_content_ids_migrate_to_starsteel_ids(self) -> None:
+        state = {
+            "version": 3,
+            "inventory": {
+                "rune_sword": 1,
+                "starsteel_sword": 2,
+                "runite_ore": 3,
+            },
+            "bank": {"rune_bar": 4},
+            "equipment": {
+                "weapon": "rune_sword",
+                "shield": "rune_shield",
+            },
+            "combat": {
+                "ground_items": [
+                    {
+                        "object_id": "ground_item_0001",
+                        "item_id": "rune_bar",
+                        "quantity": 1,
+                        "tile": [1, 1],
+                    }
+                ],
+            },
+            "world": {
+                "resource_nodes": {
+                    "runite_rock_01": {"depleted": True, "respawn_at": 123.0}
+                },
+                "depleted_resources": ["runite_rock_01", "starsteel_rock_01"],
+                "combat": {
+                    "ground_items": [
+                        {
+                            "object_id": "ground_item_0002",
+                            "item_id": "runite_ore",
+                            "quantity": 2,
+                            "tile": [2, 2],
+                        }
+                    ],
+                },
+            },
+        }
+
+        migrated = migrate_save_state(state)
+
+        self.assertEqual(migrated["version"], SAVE_VERSION)
+        self.assertEqual(
+            migrated["inventory"],
+            {"starsteel_sword": 3, "starsteel_ore": 3},
+        )
+        self.assertEqual(migrated["bank"], {"starsteel_bar": 4})
+        self.assertEqual(
+            migrated["equipment"],
+            {"weapon": "starsteel_sword", "shield": "starsteel_shield"},
+        )
+        self.assertEqual(migrated["combat"]["ground_items"][0]["item_id"], "starsteel_bar")
+        self.assertEqual(
+            migrated["world"]["combat"]["ground_items"][0]["item_id"],
+            "starsteel_ore",
+        )
+        self.assertIn("starsteel_rock_01", migrated["world"]["resource_nodes"])
+        self.assertNotIn("runite_rock_01", migrated["world"]["resource_nodes"])
+        self.assertEqual(migrated["world"]["depleted_resources"], ["starsteel_rock_01"])
 
 
 if __name__ == "__main__":

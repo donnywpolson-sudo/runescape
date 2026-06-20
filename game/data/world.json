@@ -523,13 +523,13 @@
       ]
     },
     {
-      "node_id": "runite_rock_01",
-      "node_type": "runite_rock",
-      "display_name": "Runite rock",
+      "node_id": "starsteel_rock_01",
+      "node_type": "starsteel_rock",
+      "display_name": "Starsteel rock",
       "skill_id": "mining",
       "required_level": 85,
       "xp_reward": 200,
-      "item_reward": "runite_ore",
+      "item_reward": "starsteel_ore",
       "quantity_reward": 1,
       "depleted_state": "depleted_rock",
       "respawn_seconds": 60,

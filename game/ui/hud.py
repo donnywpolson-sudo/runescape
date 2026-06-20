@@ -1095,7 +1095,7 @@ def _ore_icon_specs(item_id: str) -> list[IconSpec]:
         "coal": (0.07, 0.07, 0.08, 1.0),
         "mithril_ore": (0.18, 0.60, 0.68, 1.0),
         "adamant_ore": (0.24, 0.68, 0.30, 1.0),
-        "runite_ore": (0.35, 0.68, 0.92, 1.0),
+        "starsteel_ore": (0.35, 0.68, 0.92, 1.0),
     }.get(item_id, (0.52, 0.52, 0.48, 1.0))
     return [
         ((-0.026, 0.020, -0.020, 0.018), (-0.002, 0, 0.015), (0.18, 0.17, 0.15, 1.0)),
@@ -1140,7 +1140,7 @@ def _metal_color(item_id: str) -> tuple[float, float, float, float]:
         return (0.72, 0.68, 0.58, 1.0)
     if item_id.startswith("mithril"):
         return (0.22, 0.62, 0.72, 1.0)
-    if item_id.startswith("rune"):
+    if item_id.startswith("starsteel"):
         return (0.34, 0.68, 0.94, 1.0)
     return (0.74, 0.46, 0.22, 1.0)
 

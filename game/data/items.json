@@ -69,8 +69,8 @@
     "equip_slot": "weapon",
     "required_skills": {"attack": 30, "strength": 20}
   },
-  "rune_sword": {
-    "name": "Rune sword",
+  "starsteel_sword": {
+    "name": "Starsteel sword",
     "category": "weapon",
     "buy_price": 520,
     "sell_price": 220,
@@ -106,8 +106,8 @@
     "equip_slot": "shield",
     "required_skills": {"defence": 30}
   },
-  "rune_shield": {
-    "name": "Rune shield",
+  "starsteel_shield": {
+    "name": "Starsteel shield",
     "category": "armor",
     "buy_price": 480,
     "sell_price": 200,
@@ -180,8 +180,8 @@
     "category": "ore",
     "sell_price": 32
   },
-  "runite_ore": {
-    "name": "Runite ore",
+  "starsteel_ore": {
+    "name": "Starsteel ore",
     "category": "ore",
     "sell_price": 80
   },
@@ -200,8 +200,8 @@
     "category": "bar",
     "sell_price": 55
   },
-  "rune_bar": {
-    "name": "Rune bar",
+  "starsteel_bar": {
+    "name": "Starsteel bar",
     "category": "bar",
     "sell_price": 140
   },

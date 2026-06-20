@@ -31,10 +31,10 @@
       "base_seconds": 2.8
     },
     {
-      "recipe_id": "rune_bar",
-      "display_name": "Rune bar",
-      "inputs": {"runite_ore": 1, "coal": 4},
-      "output_item_id": "rune_bar",
+      "recipe_id": "starsteel_bar",
+      "display_name": "Starsteel bar",
+      "inputs": {"starsteel_ore": 1, "coal": 4},
+      "output_item_id": "starsteel_bar",
       "output_quantity": 1,
       "required_level": 85,
       "xp_reward": 50,
@@ -103,20 +103,20 @@
       "base_seconds": 3.6
     },
     {
-      "recipe_id": "rune_sword",
-      "display_name": "Rune sword",
-      "inputs": {"rune_bar": 1},
-      "output_item_id": "rune_sword",
+      "recipe_id": "starsteel_sword",
+      "display_name": "Starsteel sword",
+      "inputs": {"starsteel_bar": 1},
+      "output_item_id": "starsteel_sword",
       "output_quantity": 1,
       "required_level": 85,
       "xp_reward": 75,
       "base_seconds": 3.8
     },
     {
-      "recipe_id": "rune_shield",
-      "display_name": "Rune shield",
-      "inputs": {"rune_bar": 2},
-      "output_item_id": "rune_shield",
+      "recipe_id": "starsteel_shield",
+      "display_name": "Starsteel shield",
+      "inputs": {"starsteel_bar": 2},
+      "output_item_id": "starsteel_shield",
       "output_quantity": 1,
       "required_level": 85,
       "xp_reward": 150,

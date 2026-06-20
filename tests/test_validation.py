@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 from copy import deepcopy
+from pathlib import Path
 
 import pytest
 
@@ -252,6 +254,32 @@ def test_data_validation_rejects_unknown_mob_drop() -> None:
     assert "unknown item_id 'missing_drop'" in str(exc.value)
 
 
+def test_shipped_high_tier_content_uses_original_starsteel_ids() -> None:
+    items = _load_data("items.json")
+    recipes = _load_data("recipes.json")
+    world = _load_data("world.json")
+
+    assert items["starsteel_sword"]["name"] == "Starsteel sword"
+    assert items["starsteel_shield"]["name"] == "Starsteel shield"
+    assert items["starsteel_ore"]["name"] == "Starsteel ore"
+    assert items["starsteel_bar"]["name"] == "Starsteel bar"
+
+    recipe_ids = {
+        recipe["recipe_id"]
+        for recipe_group in recipes.values()
+        for recipe in recipe_group
+    }
+    assert {"starsteel_bar", "starsteel_sword", "starsteel_shield"} <= recipe_ids
+
+    node = next(
+        node
+        for node in world["resource_nodes"]
+        if node["node_id"] == "starsteel_rock_01"
+    )
+    assert node["display_name"] == "Starsteel rock"
+    assert node["item_reward"] == "starsteel_ore"
+
+
 def _items() -> dict[str, dict[str, object]]:
     return {
         "coins": {"name": "Coins", "category": "currency", "sell_price": 0},
@@ -422,3 +450,8 @@ def _quests() -> dict[str, object]:
             }
         ]
     }
+
+
+def _load_data(filename: str) -> dict[str, object]:
+    path = Path(__file__).resolve().parents[1] / "game" / "data" / filename
+    return json.loads(path.read_text(encoding="utf-8"))

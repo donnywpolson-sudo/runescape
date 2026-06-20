@@ -408,6 +408,28 @@ def test_selected_inventory_slot_is_highlighted(monkeypatch) -> None:
     assert ui.inventory_slots[1].button.options["frameColor"][0] == hud.SLOT_HILITE
 
 
+def test_starsteel_icons_use_high_tier_palette() -> None:
+    items = {
+        "starsteel_ore": {"name": "Starsteel ore", "category": "ore"},
+        "starsteel_bar": {"name": "Starsteel bar", "category": "bar"},
+        "starsteel_sword": {"name": "Starsteel sword", "category": "weapon"},
+    }
+
+    assert hud._metal_color("starsteel_sword") == (0.34, 0.68, 0.94, 1.0)
+    assert hud._item_icon_specs(items, "starsteel_ore")[1][2] == (
+        0.35,
+        0.68,
+        0.92,
+        1.0,
+    )
+    assert hud._item_icon_specs(items, "starsteel_bar")[1][2] == (
+        0.34,
+        0.68,
+        0.94,
+        1.0,
+    )
+
+
 def test_bank_rows_show_positive_inventory_or_bank_stacks(monkeypatch) -> None:
     _install_hud_fakes(monkeypatch)
 

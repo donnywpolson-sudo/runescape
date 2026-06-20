@@ -14,7 +14,7 @@ from game import settings
 from game.systems.inventory import COINS_ITEM_ID
 
 DEFAULT_SAVE_DIR = settings.SAVES_DIR
-SAVE_VERSION = 3
+SAVE_VERSION = 4
 MAX_SAVE_STEM_LENGTH = 64
 LOGGER = logging.getLogger(__name__)
 STARTER_ITEMS = {
@@ -35,6 +35,15 @@ DEFAULT_SKILL_IDS = (
     "hitpoints",
     "smithing",
 )
+LEGACY_ITEM_ID_ALIASES = {
+    "rune_sword": "starsteel_sword",
+    "rune_shield": "starsteel_shield",
+    "runite_ore": "starsteel_ore",
+    "rune_bar": "starsteel_bar",
+}
+LEGACY_RESOURCE_ID_ALIASES = {
+    "runite_rock_01": "starsteel_rock_01",
+}
 _SAFE_FILENAME_PATTERN = re.compile(r"[^A-Za-z0-9._-]+")
 _WINDOWS_RESERVED_NAMES = {
     "CON",
@@ -216,9 +225,33 @@ def migrate_legacy_starter_items(state: dict[str, Any]) -> dict[str, Any]:
     return migrated
 
 
+def migrate_legacy_content_ids(state: dict[str, Any]) -> dict[str, Any]:
+    migrated = deepcopy(state)
+
+    _migrate_item_stack_mapping(migrated, "inventory")
+    _migrate_item_stack_mapping(migrated, "bank")
+    _migrate_equipment_ids(migrated)
+    _migrate_combat_ground_items(migrated)
+
+    world = migrated.get("world")
+    if isinstance(world, dict):
+        world = dict(world)
+        _migrate_resource_state_mapping(world, "resource_nodes")
+        _migrate_resource_id_list(world, "depleted_resources")
+        _migrate_resource_id_list(world, "chopped_trees")
+        _migrate_combat_ground_items(world)
+        migrated["world"] = world
+
+    _migrate_resource_state_mapping(migrated, "resource_nodes")
+    _migrate_resource_id_list(migrated, "depleted_resources")
+    _migrate_resource_id_list(migrated, "chopped_trees")
+    return migrated
+
+
 def migrate_save_state(state: dict[str, Any]) -> dict[str, Any]:
     migrated = migrate_legacy_coins_to_inventory(state)
     migrated = migrate_legacy_starter_items(migrated)
+    migrated = migrate_legacy_content_ids(migrated)
     migrated = migrate_playable_v1_defaults(migrated)
     return migrated
 
@@ -283,6 +316,88 @@ def _positive_int(value: object) -> int:
     except (TypeError, ValueError):
         return 0
     return max(quantity, 0)
+
+
+def _migrate_item_stack_mapping(state: dict[str, Any], key: str) -> None:
+    values = state.get(key)
+    if not isinstance(values, dict):
+        return
+    migrated: dict[str, int] = {}
+    for item_id, quantity in values.items():
+        target_item_id = LEGACY_ITEM_ID_ALIASES.get(str(item_id), str(item_id))
+        amount = _positive_int(quantity)
+        if amount <= 0:
+            continue
+        migrated[target_item_id] = migrated.get(target_item_id, 0) + amount
+    state[key] = migrated
+
+
+def _migrate_equipment_ids(state: dict[str, Any]) -> None:
+    equipment = state.get("equipment")
+    if not isinstance(equipment, dict):
+        return
+    state["equipment"] = {
+        str(slot): LEGACY_ITEM_ID_ALIASES.get(str(item_id), str(item_id))
+        for slot, item_id in equipment.items()
+    }
+
+
+def _migrate_combat_ground_items(state: dict[str, Any]) -> None:
+    combat = state.get("combat")
+    if not isinstance(combat, dict):
+        return
+    combat = dict(combat)
+    ground_items = combat.get("ground_items")
+    if isinstance(ground_items, list):
+        combat["ground_items"] = [
+            _migrate_ground_item(raw_item)
+            for raw_item in ground_items
+            if isinstance(raw_item, dict)
+        ]
+    state["combat"] = combat
+
+
+def _migrate_ground_item(raw_item: dict[str, Any]) -> dict[str, Any]:
+    migrated = dict(raw_item)
+    item_id = migrated.get("item_id")
+    if isinstance(item_id, str):
+        migrated["item_id"] = LEGACY_ITEM_ID_ALIASES.get(item_id, item_id)
+    return migrated
+
+
+def _migrate_resource_state_mapping(state: dict[str, Any], key: str) -> None:
+    values = state.get(key)
+    if not isinstance(values, dict):
+        return
+    migrated: dict[str, Any] = {}
+    for resource_id, resource_state in values.items():
+        target_resource_id = LEGACY_RESOURCE_ID_ALIASES.get(str(resource_id), str(resource_id))
+        if (
+            target_resource_id in migrated
+            and isinstance(migrated[target_resource_id], dict)
+            and isinstance(resource_state, dict)
+        ):
+            merged_state = dict(resource_state)
+            merged_state.update(migrated[target_resource_id])
+            migrated[target_resource_id] = merged_state
+        else:
+            migrated[target_resource_id] = resource_state
+    state[key] = migrated
+
+
+def _migrate_resource_id_list(state: dict[str, Any], key: str) -> None:
+    values = state.get(key)
+    if not isinstance(values, list):
+        return
+    migrated: list[str] = []
+    seen: set[str] = set()
+    for resource_id in values:
+        target_resource_id = LEGACY_RESOURCE_ID_ALIASES.get(str(resource_id), str(resource_id))
+        if target_resource_id in seen:
+            continue
+        migrated.append(target_resource_id)
+        seen.add(target_resource_id)
+    state[key] = migrated
 
 
 def _backup_path(path: Path) -> Path:
