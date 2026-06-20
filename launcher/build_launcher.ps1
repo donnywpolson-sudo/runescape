@@ -4,8 +4,8 @@ $ProjectRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $PythonExe = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
 $LauncherScript = Join-Path $ProjectRoot "launcher\runescape_launcher.py"
 $IconPath = Join-Path $ProjectRoot "launcher\runescape.ico"
-$OutputExe = Join-Path $ProjectRoot "dist\RuneScapeValley.exe"
-$DesktopExe = Join-Path ([Environment]::GetFolderPath("Desktop")) "RuneScapeValley.exe"
+$OutputExe = Join-Path $ProjectRoot "dist\Hearthvale.exe"
+$DesktopExe = Join-Path ([Environment]::GetFolderPath("Desktop")) "Hearthvale.exe"
 
 function Test-PyInstaller {
     $PreviousErrorActionPreference = $ErrorActionPreference
@@ -44,7 +44,7 @@ try {
         }
     }
 
-    & $PythonExe -m PyInstaller --clean --noconfirm --onefile --windowed --icon $IconPath --name RuneScapeValley $LauncherScript
+    & $PythonExe -m PyInstaller --clean --noconfirm --onefile --windowed --icon $IconPath --name Hearthvale $LauncherScript
     if ($LASTEXITCODE -ne 0) {
         throw "PyInstaller failed with exit code $LASTEXITCODE"
     }

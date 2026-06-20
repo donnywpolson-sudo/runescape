@@ -1,1 +1,1 @@
-"""RuneScape-style RPG prototype package."""
+"""Hearthvale RPG prototype package."""

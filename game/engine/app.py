@@ -33,6 +33,7 @@ from game.ui.login import LoginScreen
 from game.ui.hud import Hud
 from game.style import WorldPalette as Palette
 from game.world import visuals
+from game.world.animation import SceneAnimator
 from game.world.map import WorldMap
 from game.world.time import GameTime
 
@@ -58,6 +59,8 @@ class GameApp(ShowBase):
             self.skills_data = _load_json(settings.DATA_DIR / "skills.json")
             self.world_data = _load_json(settings.DATA_DIR / "world.json")
             self.recipes_data = _load_json(settings.DATA_DIR / "recipes.json")
+            quests_path = settings.DATA_DIR / "quests.json"
+            self.quests_data = _load_json(quests_path) if quests_path.exists() else None
         except Exception:
             self.state = GameState.ERROR
             LOGGER.exception("Game data failed to load")
@@ -90,9 +93,10 @@ class GameApp(ShowBase):
         self.cooking = CookingSystem(self.items_data, self.inventory, self.skills)
         self.smithing = SmithingSystem(self.recipes_data, self.inventory, self.skills)
         self.combat = CombatSystem(self.world_map.mob_definitions, skills=self.skills)
-        self.quest = QuestSystem()
+        self.quest = QuestSystem(self.quests_data)
         self.shop = Shop(self.items_data, self.world_map.shop_stock)
         self.game_time = GameTime()
+        self.animator = SceneAnimator()
 
         self.player = Player(self.world_map.grid, self.world_map.player_start)
         self.player.render(self.render)
@@ -150,6 +154,7 @@ class GameApp(ShowBase):
             on_smithing_result=self.on_smithing_result,
             on_smithing_choice=self.show_smithing_choices,
             on_combat_result=self.on_combat_result,
+            animator=self.animator,
         )
 
         self.input = InputManager(self)
@@ -165,6 +170,7 @@ class GameApp(ShowBase):
         self.combat.refresh_all()
         self.world_map.apply_mob_states(self.combat.states)
         self.interactions.update()
+        self.animator.update(dt)
         self.game_time.update(dt)
         self._update_hover_marker()
         self._update_hud()
@@ -291,6 +297,8 @@ class GameApp(ShowBase):
 
     def _apply_save_state(self, state: dict[str, Any]) -> None:
         state = save.migrate_save_state(state)
+        if hasattr(self, "animator"):
+            self.animator.stop_all()
         world_state = state.get("world", {})
         self.player.load_dict(state.get("player", {}))
         self.inventory = Inventory.from_dict(state.get("inventory", {}))

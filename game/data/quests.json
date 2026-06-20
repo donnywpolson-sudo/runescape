@@ -1,0 +1,32 @@
+{
+  "quests": [
+    {
+      "quest_id": "starter_path",
+      "display_name": "Starter path",
+      "start_text": "Guide: Cook food, smelt a bar, smith and equip a weapon, defeat an enemy, use the bank and shop, then return.",
+      "in_progress_text": "Guide: Keep going. Still needed: {missing_objectives}.",
+      "completed_text": "Guide: The village is safer because of you.",
+      "completion_text": "Quest complete: Starter path. Reward: 50 coins, +40 Smithing XP.",
+      "not_started_objective": "Talk to the Village Guide.",
+      "return_objective": "Return to the Village Guide.",
+      "completed_objective": "Starter path complete.",
+      "progress_format": "Starter path {completed}/{total}: {objective}.",
+      "objectives": [
+        {"flag": "cooked_food", "label": "Cook food"},
+        {"flag": "smelted_bar", "label": "Smelt a bar"},
+        {"flag": "smithed_gear", "label": "Smith gear"},
+        {"flag": "equipped_weapon", "label": "Equip a weapon"},
+        {"flag": "ate_food", "label": "Eat food"},
+        {"flag": "defeated_enemy", "label": "Defeat an enemy"},
+        {"flag": "used_bank", "label": "Use the bank"},
+        {"flag": "used_shop", "label": "Use the shop"}
+      ],
+      "item_rewards": [
+        {"item_id": "coins", "quantity": 50}
+      ],
+      "skill_rewards": [
+        {"skill_id": "smithing", "xp": 40}
+      ]
+    }
+  ]
+}

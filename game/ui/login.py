@@ -60,7 +60,7 @@ class LoginScreen(DirectObject):
         )
         title = DirectLabel(
             parent=frame,
-            text="RuneScape Valley",
+            text="Hearthvale",
             scale=0.075,
             pos=(0, 0, 0.27),
             frameColor=(0, 0, 0, 0),

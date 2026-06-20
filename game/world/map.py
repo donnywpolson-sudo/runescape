@@ -226,22 +226,18 @@ class WorldMap:
         return self.resource_nodes.get(obj.object_id)
 
     def apply_mob_states(self, states: dict[str, MobState]) -> None:
-        previous_active = {
-            mob_id
-            for mob_id in self.mob_definitions
-            if self.objects.get(mob_id) is not None and self.objects[mob_id].active
-        }
         self.mob_states = {
             mob_id: state for mob_id, state in states.items() if mob_id in self.mob_definitions
         }
+        changed: set[str] = set()
         for mob_id in self.mob_definitions:
+            obj = self.objects.get(mob_id)
+            before = _object_render_state(obj)
             self._sync_mob_object(mob_id)
-        current_active = {
-            mob_id
-            for mob_id in self.mob_definitions
-            if self.objects.get(mob_id) is not None and self.objects[mob_id].active
-        }
-        for mob_id in previous_active | current_active:
+            obj = self.objects.get(mob_id)
+            if before != _object_render_state(obj) or (obj is not None and obj.active and obj.node is None):
+                changed.add(mob_id)
+        for mob_id in changed:
             obj = self.objects.get(mob_id)
             if obj is not None:
                 self._render_object(obj)
@@ -555,3 +551,9 @@ class WorldMap:
 
 def _tile(value: list[int] | tuple[int, int]) -> Tile:
     return int(value[0]), int(value[1])
+
+
+def _object_render_state(obj: WorldObject | None) -> tuple[bool, Tile, int, bool] | None:
+    if obj is None:
+        return None
+    return obj.active, obj.tile, obj.hitpoints, obj.blocking

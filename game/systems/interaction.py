@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -46,6 +47,7 @@ class InteractionManager:
         on_smithing_result: Callable[[object], None] | None = None,
         on_smithing_choice: Callable[[str, list[SmithingRecipe]], None] | None = None,
         on_combat_result: Callable[[object], None] | None = None,
+        animator: object | None = None,
     ) -> None:
         self.world_map = world_map
         self.player = player
@@ -66,15 +68,18 @@ class InteractionManager:
         self.on_smithing_result = on_smithing_result
         self.on_smithing_choice = on_smithing_choice
         self.on_combat_result = on_combat_result
+        self.animator = animator
         self.pending_object_id: str | None = None
         self.pending_action_id: str | None = None
         self.selected_item_id: str | None = None
+        self.pending_station_object_id: str | None = None
 
     def move_to_tile(self, tile: Tile) -> None:
         self._cancel_gathering()
         self._cancel_cooking()
         self._cancel_combat()
         self._cancel_smithing()
+        self._stop_action_animation()
         path = find_path(self.world_map.grid, self.player.tile, tile, self.world_map.blocked_tiles())
         if path is None:
             self.feedback("No path")
@@ -122,7 +127,14 @@ class InteractionManager:
         return actions
 
     def perform_action(self, action_id: str, obj: WorldObject | None) -> None:
-        if obj is None or action_id == "cancel":
+        if obj is None:
+            return
+        if action_id == "cancel":
+            self._cancel_gathering()
+            self._cancel_cooking()
+            self._cancel_combat()
+            self._cancel_smithing()
+            self._stop_action_animation()
             return
         if action_id == "examine":
             self.feedback(self._examine_text(obj))
@@ -137,6 +149,11 @@ class InteractionManager:
         self._cancel_cooking()
         self._cancel_combat()
         result = self.smithing.start_recipe_by_id(action_type, recipe_id)
+        station = self.world_map.get_object(self.pending_station_object_id) if self.pending_station_object_id else None
+        if result.pending:
+            self._start_action_animation(action_type, station)
+        else:
+            self._stop_action_animation()
         self.feedback(result.feedback)
 
     def _interact_default(self, obj: WorldObject | None, action_id: str | None = None) -> None:
@@ -216,12 +233,14 @@ class InteractionManager:
         if self.gathering is not None:
             result = self.gathering.update()
             if result is not None:
+                self._stop_action_animation()
                 self.world_map.apply_resource_states(self.gathering.states)
                 self.feedback(result.feedback)
 
         if self.cooking is not None:
             result = self.cooking.update()
             if result is not None:
+                self._stop_action_animation()
                 if (
                     result.raw_item_id is not None
                     and result.raw_item_id == self.selected_item_id
@@ -235,6 +254,7 @@ class InteractionManager:
         if self.smithing is not None:
             result = self.smithing.update()
             if result is not None:
+                self._stop_action_animation()
                 if (
                     result.item_id is not None
                     and self.selected_item_id is not None
@@ -248,6 +268,9 @@ class InteractionManager:
         if self.combat is not None:
             result = self.combat.update()
             if result is not None:
+                target = self.world_map.get_object(result.mob_id) if result.mob_id is not None else None
+                if result.killed and target is not None:
+                    self._animate_defeat(target)
                 self.world_map.apply_mob_states(self.combat.states)
                 feedback = result.feedback
                 if result.killed and result.mob_id is not None:
@@ -256,10 +279,19 @@ class InteractionManager:
                         created = self.world_map.spawn_ground_drops(mob.position, result.drops)
                         if created:
                             feedback = f"{feedback}; drops appeared"
+                        self._animate_ground_drops(created)
+                if result.player_damage > 0 and not result.killed and result.mob_id is not None:
+                    self._animate_hit(self.world_map.get_object(result.mob_id))
+                if result.pending and not result.player_dead and not result.killed and result.mob_id is not None:
+                    self._start_action_animation("combat", self.world_map.get_object(result.mob_id))
+                else:
+                    self._stop_action_animation()
                 self.feedback(feedback)
                 if self.on_combat_result is not None:
                     self.on_combat_result(result)
 
+        if self.player.is_moving:
+            self._stop_action_animation()
         if self.pending_object_id is None or self.player.is_moving:
             return
         obj = self.world_map.get_object(self.pending_object_id)
@@ -277,11 +309,11 @@ class InteractionManager:
         if self._is_gatherable(obj):
             self._perform_gathering(obj)
         elif obj.kind == "cooking_range":
-            self._perform_cooking()
+            self._perform_cooking(obj)
         elif obj.kind == "furnace":
-            self._perform_smelting()
+            self._perform_smelting(obj)
         elif obj.kind == "anvil":
-            self._perform_smithing()
+            self._perform_smithing(obj)
         elif obj.kind == "bank":
             if self.open_bank is None:
                 self.feedback("Bank unavailable")
@@ -324,9 +356,13 @@ class InteractionManager:
             allow_movement=False,
         )
         self.world_map.apply_resource_states(self.gathering.states)
+        if result.pending:
+            self._start_action_animation("gathering", obj, result.skill_id)
+        else:
+            self._stop_action_animation()
         self.feedback(result.feedback)
 
-    def _perform_cooking(self) -> None:
+    def _perform_cooking(self, obj: WorldObject) -> None:
         if self.cooking is None:
             self.feedback("Select a raw fish first")
             return
@@ -334,30 +370,44 @@ class InteractionManager:
         self._cancel_combat()
         self._cancel_smithing()
         result = self.cooking.start_cooking(self.selected_item_id)
+        if result.pending:
+            self._start_action_animation("cooking", obj)
+        else:
+            self._stop_action_animation()
         self.feedback(result.feedback)
 
-    def _perform_smelting(self) -> None:
+    def _perform_smelting(self, obj: WorldObject) -> None:
         if self.smithing is None:
             self.feedback("Select ore to smelt")
             return
         self._cancel_gathering()
         self._cancel_cooking()
         self._cancel_combat()
+        self.pending_station_object_id = obj.object_id
         if self._show_smithing_choice("smelting"):
             return
         result = self.smithing.start_smelting(self.selected_item_id)
+        if result.pending:
+            self._start_action_animation("smelting", obj)
+        else:
+            self._stop_action_animation()
         self.feedback(result.feedback)
 
-    def _perform_smithing(self) -> None:
+    def _perform_smithing(self, obj: WorldObject) -> None:
         if self.smithing is None:
             self.feedback("Select bars to smith")
             return
         self._cancel_gathering()
         self._cancel_cooking()
         self._cancel_combat()
+        self.pending_station_object_id = obj.object_id
         if self._show_smithing_choice("smithing"):
             return
         result = self.smithing.start_smithing(self.selected_item_id)
+        if result.pending:
+            self._start_action_animation("smithing", obj)
+        else:
+            self._stop_action_animation()
         self.feedback(result.feedback)
 
     def _show_smithing_choice(self, action_type: str) -> bool:
@@ -383,6 +433,10 @@ class InteractionManager:
             self.world_map.blocked_tiles(),
         )
         self.world_map.apply_mob_states(self.combat.states)
+        if result.pending:
+            self._start_action_animation("combat", obj)
+        else:
+            self._stop_action_animation()
         self.feedback(result.feedback)
 
     def _perform_ground_item(self, obj: WorldObject) -> None:
@@ -430,21 +484,129 @@ class InteractionManager:
     def _is_combatable(self, obj: WorldObject) -> bool:
         return self.combat is not None and obj.active and obj.object_id in self.combat.mobs
 
+    def _start_action_animation(
+        self,
+        action_id: str,
+        obj: WorldObject | None,
+        skill_id: str | None = None,
+    ) -> None:
+        if self.animator is None:
+            return
+        self._stop_action_animation()
+        self._face_object(obj)
+
+        parts = getattr(self.player, "parts", {}) or {}
+        player_node = getattr(self.player, "node", None)
+        right_arm = parts.get("right_arm")
+        tool = parts.get("tool")
+        target = obj.node if obj is not None else None
+
+        if action_id == "gathering" and skill_id == "woodcutting":
+            self._start_anim("start_swing", "action:arm", right_arm, axis="p", amplitude=38.0, speed=8.8)
+            self._start_anim("start_swing", "action:tool", tool, axis="p", amplitude=56.0, speed=8.8, phase=0.35)
+            self._start_anim("start_tilt", "action:target", target, roll=4.5, speed=9.0)
+            self._start_anim("start_pulse", "action:target_pulse", target, amplitude=0.025, speed=9.0)
+        elif action_id == "gathering" and skill_id == "mining":
+            self._start_anim("start_swing", "action:arm", right_arm, axis="p", amplitude=44.0, speed=9.5)
+            self._start_anim("start_swing", "action:tool", tool, axis="p", amplitude=62.0, speed=9.5, phase=0.25)
+            self._start_anim("start_tilt", "action:target", target, pitch=2.5, roll=4.0, speed=11.0)
+            self._start_anim("start_flash", "action:target_flash", target, color=(1.20, 1.15, 0.90, 1.0), speed=8.0)
+        elif action_id == "gathering" and skill_id == "fishing":
+            self._start_anim("start_tilt", "action:player_lean", player_node, pitch=2.5, roll=2.5, speed=4.2)
+            self._start_anim("start_swing", "action:tool", tool, axis="r", amplitude=20.0, speed=4.8)
+            self._start_anim("start_pulse", "action:target_pulse", target, amplitude=0.08, speed=5.2)
+            self._start_anim("start_rotate", "action:target_rotate", target, degrees_per_second=28.0)
+        elif action_id == "cooking":
+            self._start_anim("start_tilt", "action:player_lean", player_node, pitch=2.0, roll=1.5, speed=4.4)
+            self._start_anim("start_swing", "action:arm", right_arm, axis="p", amplitude=18.0, speed=6.0)
+            self._start_anim("start_pulse", "action:range_pulse", target, amplitude=0.035, speed=5.5)
+            self._start_anim("start_flash", "action:range_glow", target, color=(1.16, 0.78, 0.42, 1.0), speed=5.5)
+        elif action_id == "smelting":
+            self._start_anim("start_tilt", "action:player_lean", player_node, pitch=1.8, roll=1.5, speed=4.0)
+            self._start_anim("start_pulse", "action:furnace_pulse", target, amplitude=0.045, speed=5.8)
+            self._start_anim("start_flash", "action:furnace_glow", target, color=(1.25, 0.62, 0.28, 1.0), speed=6.2)
+        elif action_id == "smithing":
+            self._start_anim("start_swing", "action:arm", right_arm, axis="p", amplitude=46.0, speed=10.5)
+            self._start_anim("start_swing", "action:tool", tool, axis="p", amplitude=64.0, speed=10.5, phase=0.25)
+            self._start_anim("start_pulse", "action:anvil_pulse", target, amplitude=0.035, speed=10.0)
+            self._start_anim("start_flash", "action:anvil_flash", target, color=(1.28, 1.15, 0.74, 1.0), speed=10.0)
+        elif action_id == "combat":
+            self._start_anim("start_swing", "action:arm", right_arm, axis="p", amplitude=36.0, speed=7.8)
+            self._start_anim("start_swing", "action:tool", tool, axis="p", amplitude=50.0, speed=7.8, phase=0.20)
+            self._start_anim("start_bob", "action:combat_bob", player_node, amplitude=0.018, speed=7.8)
+
+    def _stop_action_animation(self) -> None:
+        if self.animator is not None and hasattr(self.animator, "stop_prefix"):
+            self.animator.stop_prefix("action:")
+
+    def _animate_hit(self, obj: WorldObject | None) -> None:
+        if obj is None or self.animator is None:
+            return
+        self._start_anim(
+            "start_hit",
+            f"fx:hit:{obj.object_id}",
+            obj.node,
+            direction=self._direction_from_player(obj),
+        )
+
+    def _animate_defeat(self, obj: WorldObject) -> None:
+        if obj.node is None or self.animator is None or not hasattr(obj.node, "copyTo"):
+            return
+        parent = obj.node.getParent()
+        if parent is None:
+            return
+        copy = obj.node.copyTo(parent)
+        copy.setName(f"{obj.object_id}_defeat_fx")
+        self._start_anim("start_defeat", f"fx:defeat:{obj.object_id}", copy)
+
+    def _animate_ground_drops(self, objects: list[WorldObject]) -> None:
+        if self.animator is None:
+            return
+        for obj in objects:
+            self._start_anim("start_pop_in", f"fx:drop:{obj.object_id}", obj.node)
+
+    def _start_anim(self, method_name: str, key: str, node: object | None, **kwargs: object) -> None:
+        if node is None or self.animator is None:
+            return
+        method = getattr(self.animator, method_name, None)
+        if method is not None:
+            method(key, node, **kwargs)
+
+    def _face_object(self, obj: WorldObject | None) -> None:
+        if obj is None:
+            return
+        dx = obj.tile[0] - self.player.tile[0]
+        dy = obj.tile[1] - self.player.tile[1]
+        if dx == 0 and dy == 0:
+            return
+        if hasattr(self.player, "heading"):
+            self.player.heading = math.degrees(math.atan2(-dx, dy))
+        sync_node = getattr(self.player, "_sync_node", None)
+        if callable(sync_node):
+            sync_node()
+
+    def _direction_from_player(self, obj: WorldObject) -> tuple[float, float, float]:
+        dx = float(obj.tile[0] - self.player.tile[0])
+        dy = float(obj.tile[1] - self.player.tile[1])
+        if dx == 0.0 and dy == 0.0:
+            return (0.0, -1.0, 0.0)
+        return (dx, dy, 0.0)
+
     def _cancel_gathering(self) -> None:
-        if self.gathering is not None:
-            self.gathering.cancel_pending()
+        if self.gathering is not None and self.gathering.cancel_pending():
+            self._stop_action_animation()
 
     def _cancel_cooking(self) -> None:
-        if self.cooking is not None:
-            self.cooking.cancel_pending()
+        if self.cooking is not None and self.cooking.cancel_pending():
+            self._stop_action_animation()
 
     def _cancel_combat(self) -> None:
-        if self.combat is not None:
-            self.combat.cancel_pending()
+        if self.combat is not None and self.combat.cancel_pending():
+            self._stop_action_animation()
 
     def _cancel_smithing(self) -> None:
-        if self.smithing is not None:
-            self.smithing.cancel_pending()
+        if self.smithing is not None and self.smithing.cancel_pending():
+            self._stop_action_animation()
 
     def _item_name(self, item_id: str) -> str:
         if self.cooking is not None:

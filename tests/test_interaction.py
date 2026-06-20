@@ -211,6 +211,48 @@ def test_move_cancels_pending_gathering() -> None:
     assert player.path
 
 
+def test_gathering_animation_starts_and_move_cancels_it() -> None:
+    world = WorldMap(
+        {
+            "width": 4,
+            "height": 4,
+            "blocked_tiles": [],
+            "water_tiles": [],
+            "resource_nodes": [_tree().to_dict()],
+        }
+    )
+    inventory = Inventory({"bronze_axe": 1})
+    skills = Skills(_skills())
+    gathering = GatheringSystem(world.resource_nodes, inventory, skills, time_provider=lambda: 100.0)
+    animator = _Animator()
+    player = _Player(tile=(1, 2))
+    manager = InteractionManager(
+        world,
+        player,
+        inventory,
+        skills,
+        Shop(_items()),
+        lambda amount: None,
+        lambda message: None,
+        gathering=gathering,
+        animator=animator,
+    )
+    tree = world.get_object("tree_01")
+    assert tree is not None
+    tree.node = _AnimNode()
+
+    manager.interact_with(tree)
+
+    assert gathering.pending is not None
+    assert ("start_tilt", "action:target") in animator.calls
+    assert ("start_pulse", "action:target_pulse") in animator.calls
+
+    manager.move_to_tile((0, 0))
+
+    assert gathering.pending is None
+    assert "action:" in animator.stopped_prefixes
+
+
 def test_cooking_range_requires_selected_raw_fish() -> None:
     feedback: list[str] = []
     inventory = Inventory({"raw_shrimp": 1})
@@ -504,6 +546,26 @@ class _ClickInteractions:
 
     def move_to_tile(self, tile: tuple[int, int]) -> None:
         self.moved.append(tile)
+
+
+class _Animator:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str]] = []
+        self.stopped_prefixes: list[str] = []
+
+    def stop_prefix(self, prefix: str) -> int:
+        self.stopped_prefixes.append(prefix)
+        return 0
+
+    def start_tilt(self, key: str, node: object, **_kwargs: object) -> None:
+        self.calls.append(("start_tilt", key))
+
+    def start_pulse(self, key: str, node: object, **_kwargs: object) -> None:
+        self.calls.append(("start_pulse", key))
+
+
+class _AnimNode:
+    pass
 
 
 class FakeClock:

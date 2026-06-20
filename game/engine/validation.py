@@ -30,7 +30,9 @@ def validate_data_dir(data_dir: str | Path = settings.DATA_DIR) -> None:
     world = _load_json(root / "world.json")
     recipes_path = root / "recipes.json"
     recipes = _load_json(recipes_path) if recipes_path.exists() else None
-    validate_all(items, skills, world, recipes)
+    quests_path = root / "quests.json"
+    quests = _load_json(quests_path) if quests_path.exists() else None
+    validate_all(items, skills, world, recipes, quests)
 
 
 def validate_all(
@@ -38,14 +40,18 @@ def validate_all(
     skills: dict[str, Any],
     world: dict[str, Any],
     recipes: dict[str, Any] | None = None,
+    quests: dict[str, Any] | None = None,
 ) -> None:
     issues: list[ValidationIssue] = []
     issues.extend(validate_items(items))
     issues.extend(validate_skills(skills))
     issues.extend(validate_item_skill_refs(items, skills))
-    issues.extend(validate_world(world, items, skills))
+    quest_ids = _quest_ids(quests) if quests is not None else None
+    issues.extend(validate_world(world, items, skills, quest_ids))
     if recipes is not None:
         issues.extend(validate_recipes(recipes, items, skills))
+    if quests is not None:
+        issues.extend(validate_quests(quests, items, skills))
     if issues:
         raise DataValidationError(issues)
 
@@ -206,6 +212,74 @@ def validate_recipes(
     return issues
 
 
+def validate_quests(
+    quests: dict[str, Any],
+    items: dict[str, Any],
+    skills: dict[str, Any],
+) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
+    if not isinstance(quests, dict):
+        return [ValidationIssue("quests.json", "must contain an object")]
+    raw_quests = quests.get("quests")
+    if not isinstance(raw_quests, list) or not raw_quests:
+        return [ValidationIssue("quests.json:quests", "must be a non-empty list")]
+
+    seen_ids: set[str] = set()
+    valid_skill_ids = set(skills) | {"attack", "strength", "defence", "hitpoints", "smithing"}
+    required_strings = {
+        "quest_id",
+        "display_name",
+        "start_text",
+        "in_progress_text",
+        "completed_text",
+        "completion_text",
+        "not_started_objective",
+        "return_objective",
+        "completed_objective",
+        "progress_format",
+    }
+    for index, quest in enumerate(raw_quests):
+        source = f"quests.json:quests[{index}]"
+        if not isinstance(quest, dict):
+            issues.append(ValidationIssue(source, "quest must be an object"))
+            continue
+        for key in sorted(required_strings):
+            value = quest.get(key)
+            if not isinstance(value, str) or not value:
+                issues.append(ValidationIssue(source, f"missing required string '{key}'"))
+        quest_id = quest.get("quest_id")
+        if isinstance(quest_id, str) and quest_id:
+            if quest_id in seen_ids:
+                issues.append(ValidationIssue(source, f"duplicate quest ID '{quest_id}'"))
+            else:
+                seen_ids.add(quest_id)
+
+        objectives = quest.get("objectives")
+        if not isinstance(objectives, list) or not objectives:
+            issues.append(ValidationIssue(f"{source}.objectives", "must be a non-empty list"))
+        else:
+            seen_flags: set[str] = set()
+            for objective_index, objective in enumerate(objectives):
+                objective_source = f"{source}.objectives[{objective_index}]"
+                if not isinstance(objective, dict):
+                    issues.append(ValidationIssue(objective_source, "objective must be an object"))
+                    continue
+                flag = objective.get("flag")
+                label = objective.get("label")
+                if not isinstance(flag, str) or not flag:
+                    issues.append(ValidationIssue(objective_source, "missing required string 'flag'"))
+                elif flag in seen_flags:
+                    issues.append(ValidationIssue(objective_source, f"duplicate objective flag '{flag}'"))
+                else:
+                    seen_flags.add(flag)
+                if not isinstance(label, str) or not label:
+                    issues.append(ValidationIssue(objective_source, "missing required string 'label'"))
+
+        _validate_quest_item_rewards(quest.get("item_rewards", []), items, source, issues)
+        _validate_quest_skill_rewards(quest.get("skill_rewards", []), valid_skill_ids, source, issues)
+    return issues
+
+
 def validate_skills(skills: dict[str, Any]) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
     if not isinstance(skills, dict) or not skills:
@@ -261,6 +335,7 @@ def validate_world(
     world: dict[str, Any],
     items: dict[str, Any],
     skills: dict[str, Any],
+    quest_ids: set[str] | None = None,
 ) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
     if not isinstance(world, dict):
@@ -379,6 +454,7 @@ def validate_world(
         resource_positions,
         world_object_positions,
         seen_ids,
+        quest_ids,
         issues,
     )
     mob_positions = _validate_mobs(
@@ -416,6 +492,7 @@ def _validate_npcs(
     resource_positions: set[tuple[int, int]],
     world_object_positions: set[tuple[int, int]],
     seen_ids: set[str],
+    quest_ids: set[str] | None,
     issues: list[ValidationIssue],
 ) -> set[tuple[int, int]]:
     raw_npcs = world.get("npcs", [])
@@ -444,6 +521,8 @@ def _validate_npcs(
         quest_id = npc.get("quest_id")
         if quest_id is not None and (not isinstance(quest_id, str) or not quest_id):
             issues.append(ValidationIssue(source, "'quest_id' must be a non-empty string"))
+        elif isinstance(quest_id, str) and quest_ids is not None and quest_id not in quest_ids:
+            issues.append(ValidationIssue(source, f"unknown quest_id '{quest_id}'"))
 
         tile = _tile(npc.get("tile"), f"{source}.tile", width, height, issues)
         if tile is not None:
@@ -486,6 +565,54 @@ def _validate_shop_stock(
         price = raw_stock_item.get("price")
         if price is not None and (not isinstance(price, int) or price <= 0):
             issues.append(ValidationIssue(source, "'price' must be a positive integer"))
+
+
+def _validate_quest_item_rewards(
+    rewards: Any,
+    items: dict[str, Any],
+    source: str,
+    issues: list[ValidationIssue],
+) -> None:
+    if not isinstance(rewards, list):
+        issues.append(ValidationIssue(f"{source}.item_rewards", "must be a list"))
+        return
+    for index, reward in enumerate(rewards):
+        reward_source = f"{source}.item_rewards[{index}]"
+        if not isinstance(reward, dict):
+            issues.append(ValidationIssue(reward_source, "item reward must be an object"))
+            continue
+        item_id = reward.get("item_id")
+        if not isinstance(item_id, str) or not item_id:
+            issues.append(ValidationIssue(reward_source, "missing required string 'item_id'"))
+        elif item_id not in items:
+            issues.append(ValidationIssue(reward_source, f"unknown item_id '{item_id}'"))
+        quantity = reward.get("quantity")
+        if not isinstance(quantity, int) or quantity <= 0:
+            issues.append(ValidationIssue(reward_source, "'quantity' must be a positive integer"))
+
+
+def _validate_quest_skill_rewards(
+    rewards: Any,
+    valid_skill_ids: set[str],
+    source: str,
+    issues: list[ValidationIssue],
+) -> None:
+    if not isinstance(rewards, list):
+        issues.append(ValidationIssue(f"{source}.skill_rewards", "must be a list"))
+        return
+    for index, reward in enumerate(rewards):
+        reward_source = f"{source}.skill_rewards[{index}]"
+        if not isinstance(reward, dict):
+            issues.append(ValidationIssue(reward_source, "skill reward must be an object"))
+            continue
+        skill_id = reward.get("skill_id")
+        if not isinstance(skill_id, str) or not skill_id:
+            issues.append(ValidationIssue(reward_source, "missing required string 'skill_id'"))
+        elif skill_id not in valid_skill_ids:
+            issues.append(ValidationIssue(reward_source, f"unknown skill_id '{skill_id}'"))
+        xp = reward.get("xp")
+        if not isinstance(xp, int) or xp <= 0:
+            issues.append(ValidationIssue(reward_source, "'xp' must be a positive integer"))
 
 
 def _validate_mobs(
@@ -686,6 +813,19 @@ def _load_json(path: Path) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise DataValidationError([ValidationIssue(path.name, "top-level JSON value must be an object")])
     return data
+
+
+def _quest_ids(quests: dict[str, Any] | None) -> set[str]:
+    if not isinstance(quests, dict):
+        return set()
+    raw_quests = quests.get("quests", [])
+    if not isinstance(raw_quests, list):
+        return set()
+    return {
+        str(quest["quest_id"])
+        for quest in raw_quests
+        if isinstance(quest, dict) and isinstance(quest.get("quest_id"), str) and quest.get("quest_id")
+    }
 
 
 def _tile_set(

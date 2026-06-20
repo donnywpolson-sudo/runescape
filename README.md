@@ -1,6 +1,6 @@
-# RuneScape Valley Prototype
+# Hearthvale Prototype
 
-A small Panda3D vertical slice for a single-player, low-poly, top-down RPG inspired by RuneScape and Stardew Valley. It uses placeholder geometry only: tiles, boxes, cylinders, and cones.
+A small Panda3D vertical slice for a single-player, low-poly, top-down RPG about gathering, crafting, combat, shops, banking, and long-term character progression. It uses placeholder geometry only: tiles, boxes, cylinders, and cones.
 
 ## Setup
 
@@ -15,13 +15,13 @@ python -m pip install -r requirements.txt
 Use the built Windows launcher when available:
 
 ```powershell
-.\dist\RuneScapeValley.exe
+.\dist\Hearthvale.exe
 ```
 
 The launcher is also copied to the Desktop by `launcher\build_launcher.ps1`:
 
 ```powershell
-& "$env:USERPROFILE\Desktop\RuneScapeValley.exe"
+& "$env:USERPROFILE\Desktop\Hearthvale.exe"
 ```
 
 For development or troubleshooting, run the game module directly:
@@ -78,7 +78,7 @@ automatically when needed.
 ## Current MVP Features
 
 - 100x100 scalable tile world with the current starter area, grass, dirt paths, blocked rocks, trees, copper rocks, fishing spots, stumps, depleted rocks, shop, bank, cooking range, and training dummy markers.
-- Angled RuneScape-style camera independent from player movement.
+- Angled top-down camera independent from player movement.
 - Left-click movement with grid A* pathfinding.
 - Right-click interactions that walk adjacent before gathering, opening bank/shop panels, or training combat.
 - Shared gathering system for woodcutting, mining, and fishing with JSON-defined XP, level requirements, item rewards, depletion, respawn state, and required starter tools.
@@ -86,7 +86,7 @@ automatically when needed.
 - Bank booth with an in-game bank panel for depositing and withdrawing inventory stacks.
 - Shop panel for choosing specific sellable inventory stacks instead of instantly selling everything.
 - Basic combat skills and equipment requirements for wielding higher-tier weapons and shields.
-- Data validation for `items.json`, `skills.json`, and `world.json`.
+- Data validation for `items.json`, `skills.json`, `world.json`, `recipes.json`, and `quests.json`.
 
 ## Next Recommended Systems
 

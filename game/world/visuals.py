@@ -175,6 +175,16 @@ def render_player_model(parent: NodePath) -> dict[str, NodePath]:
     right_arm.setPos(0.26, 0.0, 0.47)
     parts["right_arm"] = right_arm
 
+    tool = parent.attachNewNode("player_tool")
+    tool.setPos(0.31, -0.05, 0.26)
+    tool.setHpr(-16, 0, -10)
+    handle = make_box("player_tool_handle", (0.045, 0.055, 0.42), C.WOOD_LIGHT)
+    handle.reparentTo(tool)
+    head = make_box("player_tool_head", (0.16, 0.060, 0.08), C.STONE_LIGHT)
+    head.reparentTo(tool)
+    head.setPos(-0.04, -0.005, 0.36)
+    parts["tool"] = tool
+
     head = make_cylinder("player_head", 0.16, 0.21, 8, C.SKIN)
     head.reparentTo(parent)
     head.setZ(0.80)
@@ -240,6 +250,11 @@ def _render_grass_tile(holder: NodePath, tile: Tile) -> None:
         tuft.reparentTo(holder)
         tuft.setPos(0.27, 0.34, 0.015)
         tuft.setH(28)
+    if _hash(tile, 5) == 0:
+        patch = make_box("grass_dark_patch", (0.30, 0.09, 0.012), C.GRASS_DARK)
+        patch.reparentTo(holder)
+        patch.setPos(0.34, 0.72, 0.008)
+        patch.setH(-23)
     if _hash(tile, 7) == 0:
         stone = make_box("grass_pebble", (0.11, 0.08, 0.025), C.STONE_DARK)
         stone.reparentTo(holder)
@@ -249,6 +264,11 @@ def _render_grass_tile(holder: NodePath, tile: Tile) -> None:
         flower = make_box("grass_flower", (0.05, 0.05, 0.045), C.FLOWER_YELLOW)
         flower.reparentTo(holder)
         flower.setPos(0.60, 0.30, 0.015)
+    if _hash(tile, 17) == 0:
+        blade = make_box("grass_blade", (0.05, 0.20, 0.055), C.GRASS_LIGHT)
+        blade.reparentTo(holder)
+        blade.setPos(0.76, 0.24, 0.012)
+        blade.setH(42)
 
 
 def _render_dirt_tile(holder: NodePath, tile: Tile, edge_dirs: set[str]) -> None:
@@ -258,6 +278,12 @@ def _render_dirt_tile(holder: NodePath, tile: Tile, edge_dirs: set[str]) -> None
     path = make_box("dirt_path", (0.92, 0.92, 0.018), _palette_color(tile, C.DIRT))
     path.reparentTo(holder)
     path.setPos(0.50, 0.50, 0.0)
+
+    if _hash(tile, 6) == 0:
+        worn = make_box("dirt_worn_strip", (0.58, 0.055, 0.022), C.DIRT_LIGHT)
+        worn.reparentTo(holder)
+        worn.setPos(0.48, 0.48, 0.009)
+        worn.setH(34)
 
     for edge in edge_dirs:
         if edge in {"west", "east"}:
@@ -284,6 +310,11 @@ def _render_water_tile(holder: NodePath, tile: Tile, edge_dirs: set[str]) -> Non
         ripple.reparentTo(holder)
         ripple.setPos(0.50, 0.50, 0.012)
         ripple.setH(12)
+    if _hash(tile, 5) == 0:
+        shimmer = make_box("water_shimmer", (0.30, 0.018, 0.009), C.WATER_SHIMMER)
+        shimmer.reparentTo(holder)
+        shimmer.setPos(0.58, 0.32, 0.014)
+        shimmer.setH(-18)
 
     for edge in edge_dirs:
         if edge in {"west", "east"}:
@@ -307,10 +338,20 @@ def _render_tree(holder: NodePath, name: str, tier: int) -> None:
     trunk_side.reparentTo(holder)
     trunk_side.setPos(-0.05, -0.04, 0.02)
 
+    branch = make_box(f"{name}_branch", (0.10, 0.36, 0.08), C.TRUNK_DARK)
+    branch.reparentTo(holder)
+    branch.setPos(0.06, -0.04, 0.68)
+    branch.setH(-34)
+
     lower = make_cone(f"{name}_leaves_lower", 0.66, 0.62, 7, leaf_dark)
     lower.reparentTo(holder)
     lower.setZ(0.58)
     lower.setH(18)
+
+    side = make_cone(f"{name}_leaves_side", 0.38, 0.42, 6, leaf)
+    side.reparentTo(holder)
+    side.setPos(-0.28, 0.12, 0.78)
+    side.setH(-28)
 
     middle = make_cone(f"{name}_leaves_middle", 0.52, 0.62, 7, leaf)
     middle.reparentTo(holder)
@@ -330,6 +371,10 @@ def _render_stump(holder: NodePath, name: str, state: ResourceNodeState) -> None
     cut = make_cylinder(f"{name}_cut", 0.17, 0.03, 8, C.STUMP_TOP)
     cut.reparentTo(holder)
     cut.setZ(0.24)
+    notch = make_box(f"{name}_notch", (0.18, 0.05, 0.05), C.TRUNK_DARK)
+    notch.reparentTo(holder)
+    notch.setPos(0.04, -0.16, 0.23)
+    notch.setH(18)
     _respawn_glow(holder, name, state, 0.31)
 
 
@@ -356,6 +401,16 @@ def _render_ore_rock(holder: NodePath, name: str, tier: int) -> None:
     shard.setPos(-0.20, 0.12, 0.25)
     shard.setH(-20)
 
+    rear = make_box(f"{name}_rear_facet", (0.28, 0.22, 0.18), rock_light)
+    rear.reparentTo(holder)
+    rear.setPos(-0.21, 0.20, 0.16)
+    rear.setH(42)
+
+    chip = make_box(f"{name}_bright_chip", (0.08, 0.07, 0.06), vein_color)
+    chip.reparentTo(holder)
+    chip.setPos(0.30, 0.05, 0.20)
+    chip.setH(14)
+
 
 def _render_depleted_rock(holder: NodePath, name: str, state: ResourceNodeState) -> None:
     _shadow(holder, f"{name}_shadow", 0.42, 0.25)
@@ -366,6 +421,10 @@ def _render_depleted_rock(holder: NodePath, name: str, state: ResourceNodeState)
     chip.reparentTo(holder)
     chip.setPos(0.16, -0.12, 0.20)
     chip.setH(24)
+    dust = make_box(f"{name}_depleted_dust", (0.46, 0.11, 0.025), C.DEPLETED_MARK)
+    dust.reparentTo(holder)
+    dust.setPos(-0.08, 0.18, 0.035)
+    dust.setH(-12)
     _respawn_glow(holder, name, state, 0.36)
 
 
@@ -394,11 +453,22 @@ def _render_fishing_spot(holder: NodePath, name: str, tier: int) -> None:
     wake.setPos(0.02, 0.16, 0.038)
     wake.setH(-8)
 
+    buoy = make_cylinder(f"{name}_buoy", 0.045, 0.09, 6, C.FISH_BUOY)
+    buoy.reparentTo(holder)
+    buoy.setPos(0.22, -0.14, 0.042)
+    bobber_top = make_box(f"{name}_buoy_top", (0.08, 0.08, 0.025), C.WATER_SHIMMER)
+    bobber_top.reparentTo(holder)
+    bobber_top.setPos(0.22, -0.14, 0.13)
+
 
 def _render_quiet_water(holder: NodePath, name: str, state: ResourceNodeState) -> None:
     ripple = make_ground_ring(f"{name}_quiet", 0.22, C.WATER_RIPPLE, thickness=1.2)
     ripple.reparentTo(holder)
     ripple.setZ(0.032)
+    marker = make_box(f"{name}_quiet_marker", (0.18, 0.024, 0.010), C.DEPLETED_MARK)
+    marker.reparentTo(holder)
+    marker.setPos(0.0, 0.0, 0.034)
+    marker.setH(24)
     _respawn_glow(holder, name, state, 0.25)
 
 
@@ -415,6 +485,10 @@ def _render_shop(holder: NodePath, name: str) -> None:
     canopy = make_box(f"{name}_canopy", (1.05, 0.44, 0.10), C.CLOTH_RED)
     canopy.reparentTo(holder)
     canopy.setPos(0.0, -0.25, 0.92)
+    canopy_peak = make_cone(f"{name}_canopy_peak", 0.26, 0.18, 4, C.CLOTH_RED)
+    canopy_peak.reparentTo(holder)
+    canopy_peak.setPos(0.0, -0.25, 0.98)
+    canopy_peak.setH(45)
 
     for offset in (-0.40, 0.40):
         post = make_cylinder(f"{name}_post_{offset}", 0.04, 0.88, 6, C.TRUNK)
@@ -425,6 +499,9 @@ def _render_shop(holder: NodePath, name: str) -> None:
     coin = make_cylinder(f"{name}_coin", 0.07, 0.025, 10, C.GOLD)
     coin.reparentTo(holder)
     coin.setPos(-0.25, 0.02, 0.45)
+    sign = make_box(f"{name}_sign", (0.30, 0.055, 0.16), C.GOLD)
+    sign.reparentTo(holder)
+    sign.setPos(0.28, -0.48, 0.68)
 
 
 def _render_bank(holder: NodePath, name: str) -> None:
@@ -444,6 +521,10 @@ def _render_bank(holder: NodePath, name: str) -> None:
     cloth = make_box(f"{name}_cloth", (1.02, 0.24, 0.08), C.CLOTH_BLUE)
     cloth.reparentTo(holder)
     cloth.setPos(0.0, -0.30, 0.86)
+    arch = make_cone(f"{name}_stone_arch", 0.38, 0.24, 5, C.STONE)
+    arch.reparentTo(holder)
+    arch.setPos(0.0, -0.30, 0.84)
+    arch.setH(18)
 
     lock = make_box(f"{name}_lock", (0.12, 0.05, 0.14), C.GOLD)
     lock.reparentTo(holder)
@@ -463,6 +544,9 @@ def _render_cooking_range(holder: NodePath, name: str) -> None:
     fire = make_box(f"{name}_fire", (0.24, 0.04, 0.10), C.CLOTH_RED)
     fire.reparentTo(holder)
     fire.setPos(0.0, -0.35, 0.16)
+    ember = make_box(f"{name}_ember", (0.16, 0.035, 0.12), C.EMBER)
+    ember.reparentTo(holder)
+    ember.setPos(0.0, -0.385, 0.20)
 
     top = make_box(f"{name}_top", (0.82, 0.68, 0.08), C.STONE_DARK)
     top.reparentTo(holder)
@@ -471,6 +555,9 @@ def _render_cooking_range(holder: NodePath, name: str) -> None:
     pot = make_cylinder(f"{name}_pot", 0.22, 0.20, 8, C.OUTLINE)
     pot.reparentTo(holder)
     pot.setPos(0.0, 0.02, 0.50)
+    lid = make_cone(f"{name}_pot_lid", 0.18, 0.08, 8, C.STONE_DARK)
+    lid.reparentTo(holder)
+    lid.setPos(0.0, 0.02, 0.70)
 
     chimney = make_cylinder(f"{name}_chimney", 0.10, 0.72, 7, C.OUTLINE)
     chimney.reparentTo(holder)
@@ -490,6 +577,9 @@ def _render_combat_dummy(holder: NodePath, name: str) -> None:
     target = make_box(f"{name}_target", (0.24, 0.04, 0.24), C.CLOTH_RED)
     target.reparentTo(holder)
     target.setPos(0.0, -0.12, 0.58)
+    crossbar = make_box(f"{name}_crossbar", (0.54, 0.08, 0.08), C.WOOD_DARK)
+    crossbar.reparentTo(holder)
+    crossbar.setZ(0.64)
 
     head = make_cylinder(f"{name}_head", 0.14, 0.16, 8, C.STUMP_TOP)
     head.reparentTo(holder)
@@ -509,6 +599,9 @@ def _render_furnace(holder: NodePath, name: str) -> None:
     fire = make_box(f"{name}_fire", (0.22, 0.04, 0.12), C.CLOTH_RED)
     fire.reparentTo(holder)
     fire.setPos(0.0, -0.38, 0.18)
+    core = make_box(f"{name}_ember_core", (0.14, 0.035, 0.16), C.EMBER)
+    core.reparentTo(holder)
+    core.setPos(0.0, -0.405, 0.20)
 
     chimney = make_cylinder(f"{name}_chimney", 0.16, 0.54, 8, C.STONE)
     chimney.reparentTo(holder)
@@ -517,6 +610,9 @@ def _render_furnace(holder: NodePath, name: str) -> None:
     glow = make_ground_ring(f"{name}_glow", 0.40, C.LAMP, thickness=1.4)
     glow.reparentTo(holder)
     glow.setZ(0.035)
+    vent = make_cone(f"{name}_vent", 0.19, 0.16, 8, C.ASH)
+    vent.reparentTo(holder)
+    vent.setZ(1.00)
 
 
 def _render_anvil(holder: NodePath, name: str) -> None:
@@ -537,6 +633,11 @@ def _render_anvil(holder: NodePath, name: str) -> None:
     face = make_box(f"{name}_face", (0.16, 0.20, 0.18), C.STONE)
     face.reparentTo(holder)
     face.setPos(-0.28, 0.0, 0.30)
+    for index, x in enumerate((-0.10, 0.00, 0.10)):
+        spark = make_box(f"{name}_spark_{index}", (0.035, 0.035, 0.08), C.SPARK)
+        spark.reparentTo(holder)
+        spark.setPos(x, -0.16 + index * 0.03, 0.49 + index * 0.03)
+        spark.setH(index * 24)
 
 
 def _render_quest_npc(holder: NodePath, name: str) -> None:
@@ -567,6 +668,11 @@ def _render_mob(holder: NodePath, obj: WorldObject) -> None:
     eye.reparentTo(holder)
     eye.setPos(0.0, -0.13, 0.66)
 
+    shoulder = make_box(f"{obj.object_id}_shoulder", (0.42, 0.12, 0.10), accent)
+    shoulder.reparentTo(holder)
+    shoulder.setPos(0.0, -0.02, 0.50)
+    shoulder.setH(-10)
+
     ring = make_ground_ring(f"{obj.object_id}_combat_ring", 0.34, accent, thickness=1.4)
     ring.reparentTo(holder)
     ring.setZ(0.034)
@@ -587,6 +693,10 @@ def _render_ground_item(holder: NodePath, obj: WorldObject) -> None:
     tie = make_box(f"{obj.object_id}_tie", (0.20, 0.045, 0.04), C.WOOD_DARK)
     tie.reparentTo(holder)
     tie.setPos(0.0, -0.09, 0.17)
+    glint = make_box(f"{obj.object_id}_glint", (0.08, 0.018, 0.025), C.SPARK)
+    glint.reparentTo(holder)
+    glint.setPos(0.06, -0.11, 0.16)
+    glint.setH(20)
 
 
 def _render_npc(holder: NodePath, name: str, pos: tuple[float, float, float], tunic: Color) -> None:

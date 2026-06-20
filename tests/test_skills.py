@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from game.systems.skills import Skills, osrs_xp_thresholds, skill_xp_thresholds
+from game.systems.skills import Skills, skill_xp_thresholds
 
 
 DEFINITIONS = {
@@ -22,7 +22,6 @@ class SkillsTests(unittest.TestCase):
         self.assertEqual(thresholds["2"], 83)
         self.assertEqual(thresholds["50"], 101333)
         self.assertEqual(thresholds["99"], 13034431)
-        self.assertEqual(osrs_xp_thresholds(), thresholds)
 
     def test_threshold_leveling(self) -> None:
         skills = Skills(DEFINITIONS)

@@ -156,7 +156,7 @@ class Hud:
         self.chat_down_button = _button(self.chat_panel, "Down", (0.30, 0, -0.145), SMALL_BUTTON_TEXT_SCALE, lambda: self.scroll_chat(-1))
 
         self.side_panel = _panel((-0.26, 0.26, -1.38, 0.18), (1.48, 0, 0.74), PANEL)
-        _text(self.side_panel, "RuneScape Valley", (0.0, 0.115), 0.034, TextNode.ACenter, GOLD)
+        _text(self.side_panel, "Hearthvale", (0.0, 0.115), 0.034, TextNode.ACenter, GOLD)
 
         self.minimap = _panel((-0.18, 0.18, -0.18, 0.18), (0.0, 0, -0.08), PANEL_LIGHT, self.side_panel)
         _text(self.minimap, "N", (0.0, 0.135), 0.025, TextNode.ACenter, PANEL_DARK)

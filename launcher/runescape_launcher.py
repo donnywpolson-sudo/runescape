@@ -10,6 +10,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(r"C:\Users\donny\Desktop\runescape")
 GAME_ENTRYPOINT = PROJECT_ROOT / "game" / "main.py"
 LOG_PATH = PROJECT_ROOT / "logs" / "launcher.log"
+LAUNCHER_TITLE = "Hearthvale Launcher"
 
 
 def append_log(message: str) -> None:
@@ -42,14 +43,14 @@ def resolve_python() -> str:
 def main() -> int:
     if not PROJECT_ROOT.exists():
         show_error(
-            "RuneScape Valley Launcher",
+            LAUNCHER_TITLE,
             f"Project folder was not found:\n{PROJECT_ROOT}\n\nMove it back or rebuild the launcher.",
         )
         return 1
 
     if not GAME_ENTRYPOINT.exists():
         show_error(
-            "RuneScape Valley Launcher",
+            LAUNCHER_TITLE,
             f"Game entry point was not found:\n{GAME_ENTRYPOINT}",
         )
         return 1
@@ -70,7 +71,7 @@ def main() -> int:
         )
     except OSError as exc:
         show_error(
-            "RuneScape Valley Launcher",
+            LAUNCHER_TITLE,
             f"Failed to start Python:\n{exc}\n\nInstall Python or rebuild the project virtual environment.",
         )
         return 1
@@ -80,7 +81,7 @@ def main() -> int:
 
     if completed.returncode != 0:
         show_error(
-            "RuneScape Valley Launcher",
+            LAUNCHER_TITLE,
             f"Game exited with code {completed.returncode}.\n\nDetails were written to:\n{LOG_PATH}",
         )
         return completed.returncode

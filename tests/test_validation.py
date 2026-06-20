@@ -9,7 +9,7 @@ from game.systems.skills import skill_xp_thresholds
 
 
 def test_data_validation_success() -> None:
-    validate_all(_items(), _skills(), _world())
+    validate_all(_items(), _skills(), _world(), quests=_quests())
 
 
 def test_data_validation_missing_required_resource_keys() -> None:
@@ -158,7 +158,51 @@ def test_data_validation_accepts_recipes_npcs_and_smithing_stations() -> None:
     world["anvil"] = {"id": "anvil_01", "tile": [17, 16]}
     world["npcs"] = [{"id": "guide_01", "name": "Village Guide", "tile": [18, 16], "quest_id": "starter_path"}]
 
-    validate_all(_items(), _skills(), world, _recipes())
+    validate_all(_items(), _skills(), world, _recipes(), _quests())
+
+
+def test_data_validation_rejects_unknown_npc_quest_id_when_quests_loaded() -> None:
+    world = _world()
+    world["npcs"] = [{"id": "guide_01", "name": "Village Guide", "tile": [18, 16], "quest_id": "missing_path"}]
+
+    with pytest.raises(DataValidationError) as exc:
+        validate_all(_items(), _skills(), world, quests=_quests())
+
+    assert "unknown quest_id 'missing_path'" in str(exc.value)
+
+
+def test_data_validation_accepts_quests() -> None:
+    validate_all(_items(), _skills(), _world(), quests=_quests())
+
+
+def test_data_validation_rejects_unknown_quest_reward_item() -> None:
+    quests = _quests()
+    quests["quests"][0]["item_rewards"][0]["item_id"] = "missing_item"
+
+    with pytest.raises(DataValidationError) as exc:
+        validate_all(_items(), _skills(), _world(), quests=quests)
+
+    assert "unknown item_id 'missing_item'" in str(exc.value)
+
+
+def test_data_validation_rejects_unknown_quest_reward_skill() -> None:
+    quests = _quests()
+    quests["quests"][0]["skill_rewards"][0]["skill_id"] = "missing_skill"
+
+    with pytest.raises(DataValidationError) as exc:
+        validate_all(_items(), _skills(), _world(), quests=quests)
+
+    assert "unknown skill_id 'missing_skill'" in str(exc.value)
+
+
+def test_data_validation_rejects_duplicate_quest_objective_flags() -> None:
+    quests = _quests()
+    quests["quests"][0]["objectives"][1]["flag"] = "cooked_food"
+
+    with pytest.raises(DataValidationError) as exc:
+        validate_all(_items(), _skills(), _world(), quests=quests)
+
+    assert "duplicate objective flag 'cooked_food'" in str(exc.value)
 
 
 def test_data_validation_rejects_unknown_recipe_input() -> None:
@@ -352,4 +396,29 @@ def _recipes() -> dict[str, object]:
                 "base_seconds": 2.0,
             }
         ],
+    }
+
+
+def _quests() -> dict[str, object]:
+    return {
+        "quests": [
+            {
+                "quest_id": "starter_path",
+                "display_name": "Starter path",
+                "start_text": "Guide: Cook food and help the village.",
+                "in_progress_text": "Guide: Keep going. Still needed: {missing_objectives}.",
+                "completed_text": "Guide: The village is safer because of you.",
+                "completion_text": "Quest complete: Starter path. Reward: 50 coins, +40 Smithing XP.",
+                "not_started_objective": "Talk to the Village Guide.",
+                "return_objective": "Return to the Village Guide.",
+                "completed_objective": "Starter path complete.",
+                "progress_format": "Starter path {completed}/{total}: {objective}.",
+                "objectives": [
+                    {"flag": "cooked_food", "label": "Cook food"},
+                    {"flag": "smelted_bar", "label": "Smelt a bar"},
+                ],
+                "item_rewards": [{"item_id": "coins", "quantity": 50}],
+                "skill_rewards": [{"skill_id": "smithing", "xp": 40}],
+            }
+        ]
     }
