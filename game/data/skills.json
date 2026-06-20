@@ -1,0 +1,35 @@
+{
+  "woodcutting": {
+    "display_name": "Woodcutting",
+    "starting_level": 1,
+    "xp_thresholds": {
+      "1": 0,
+      "2": 100,
+      "3": 250,
+      "4": 500,
+      "5": 900
+    }
+  },
+  "mining": {
+    "display_name": "Mining",
+    "starting_level": 1,
+    "xp_thresholds": {
+      "1": 0,
+      "2": 100,
+      "3": 250,
+      "4": 500,
+      "5": 900
+    }
+  },
+  "fishing": {
+    "display_name": "Fishing",
+    "starting_level": 1,
+    "xp_thresholds": {
+      "1": 0,
+      "2": 100,
+      "3": 250,
+      "4": 500,
+      "5": 900
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "logs": {
+    "name": "Logs",
+    "sell_price": 3
+  },
+  "copper_ore": {
+    "name": "Copper ore",
+    "sell_price": 5
+  },
+  "raw_fish": {
+    "name": "Raw fish",
+    "sell_price": 4
+  }
+}
