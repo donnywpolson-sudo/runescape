@@ -318,69 +318,56 @@ def world_tint(minute: float) -> tuple[Color, Color]:
 
 
 def _render_grass_tile(holder: NodePath, tile: Tile) -> None:
-    base = make_quad("grass_base", settings.TILE_SIZE, _palette_color(tile, C.GRASS))
+    base = make_quad("grass_base", settings.TILE_SIZE, _grass_base_color(tile))
     base.reparentTo(holder)
 
-    if _hash(tile, 29) <= 0x4FFF:
-        cross = make_box("grass_cross_tile_patch", (1.20, 0.24, 0.010), C.GRASS_SHADOW_PATCH)
-        cross.reparentTo(holder)
-        cross.setPos(0.52, 0.18 if _hash(tile, 30) % 2 else 0.84, 0.005)
-        cross.setH(-18 if _hash(tile, 31) % 2 else 24)
-    if _hash(tile, 37) <= 0x3FFF:
-        drift = make_box("grass_dirt_blend", (0.82, 0.16, 0.012), C.SHORE)
-        drift.reparentTo(holder)
-        drift.setPos(0.08 if _hash(tile, 38) % 2 else 0.92, 0.52, 0.007)
-        drift.setH(78)
-    if _hash(tile, 2) == 0:
-        shade = make_box("grass_mottled_shade", (0.54, 0.38, 0.010), C.GRASS_DARK)
+    if _grass_noise(tile, 2) <= 0x37FF:
+        shade = make_box("grass_soft_mottle", (0.38, 0.28, 0.008), C.GRASS_SHADOW_PATCH)
         shade.reparentTo(holder)
-        shade.setPos(0.30, 0.32, 0.006)
-        shade.setH(15)
-    if _hash(tile, 13) == 0:
-        sun_patch = make_box("grass_sun_patch", (0.26, 0.18, 0.011), C.GRASS_HIGHLIGHT)
+        shade.setPos(_grass_offset(tile, 4), _grass_offset(tile, 5), 0.005)
+        shade.setH((_grass_noise(tile, 6) % 70) - 35)
+    if _grass_noise(tile, 9) <= 0x1FFF:
+        sun_patch = make_box("grass_sun_patch", (0.20, 0.13, 0.009), C.GRASS_HIGHLIGHT)
         sun_patch.reparentTo(holder)
-        sun_patch.setPos(0.66, 0.58, 0.008)
-        sun_patch.setH(-28)
-    if _hash(tile, 3) == 0:
-        tuft = make_box("grass_tuft", (0.16, 0.04, 0.06), C.GRASS_LIGHT)
+        sun_patch.setPos(_grass_offset(tile, 10), _grass_offset(tile, 11), 0.007)
+        sun_patch.setH((_grass_noise(tile, 12) % 70) - 35)
+    if _grass_noise(tile, 14) <= 0x17FF:
+        dry = make_box("grass_dry_speck", (0.18, 0.055, 0.010), C.GRASS_DRY)
+        dry.reparentTo(holder)
+        dry.setPos(_grass_offset(tile, 15), _grass_offset(tile, 16), 0.008)
+        dry.setH((_grass_noise(tile, 17) % 100) - 50)
+    if _grass_noise(tile, 20) <= 0x23FF:
+        tuft = make_box("grass_tuft", (0.11, 0.035, 0.045), C.GRASS_LIGHT)
         tuft.reparentTo(holder)
-        tuft.setPos(0.27, 0.34, 0.015)
-        tuft.setH(28)
-    if _hash(tile, 41) <= 0x6FFF:
-        for index, (x, y, h) in enumerate(((0.12, 0.78, -28), (0.88, 0.26, 35))):
-            blade = make_box(f"grass_edge_blade_{index}", (0.05, 0.24, 0.065), C.GRASS_LIGHT)
+        tuft.setPos(_grass_offset(tile, 21), _grass_offset(tile, 22), 0.012)
+        tuft.setH((_grass_noise(tile, 23) % 80) - 40)
+    if _grass_noise(tile, 24) <= 0x0FFF:
+        for index in range(2):
+            blade = make_box(f"grass_blade_cluster_{index}", (0.035, 0.14, 0.045), C.GRASS_LIGHT)
             blade.reparentTo(holder)
-            blade.setPos(x, y, 0.015)
-            blade.setH(h)
-    if _hash(tile, 5) == 0:
-        patch = make_box("grass_dark_patch", (0.30, 0.09, 0.012), C.GRASS_DARK)
-        patch.reparentTo(holder)
-        patch.setPos(0.34, 0.72, 0.008)
-        patch.setH(-23)
-    if _hash(tile, 7) == 0:
+            blade.setPos(_grass_offset(tile, 25 + index * 3), _grass_offset(tile, 26 + index * 3), 0.012)
+            blade.setH((_grass_noise(tile, 27 + index * 3) % 90) - 45)
+    if _grass_noise(tile, 31) <= 0x0FFF:
         stone = make_box("grass_pebble", (0.11, 0.08, 0.025), C.STONE_DARK)
         stone.reparentTo(holder)
-        stone.setPos(0.70, 0.62, 0.01)
-        stone.setH(-18)
-    if _hash(tile, 11) == 0:
+        stone.setPos(_grass_offset(tile, 32), _grass_offset(tile, 33), 0.010)
+        stone.setH((_grass_noise(tile, 34) % 60) - 30)
+    if _grass_noise(tile, 35) <= 0x0AFF:
         flower = make_box("grass_flower", (0.05, 0.05, 0.045), C.FLOWER_YELLOW)
         flower.reparentTo(holder)
-        flower.setPos(0.60, 0.30, 0.015)
-    if _hash(tile, 19) == 0:
+        flower.setPos(_grass_offset(tile, 36), _grass_offset(tile, 37), 0.014)
+    if _grass_noise(tile, 38) <= 0x07FF:
+        origin_x = _grass_offset(tile, 39)
+        origin_y = _grass_offset(tile, 40)
         for index, (x, y) in enumerate(((0.20, 0.20), (0.25, 0.24), (0.16, 0.26))):
             flower = make_box(f"grass_red_flower_{index}", (0.038, 0.038, 0.040), C.FLOWER_RED)
             flower.reparentTo(holder)
-            flower.setPos(x, y, 0.016)
-    if _hash(tile, 17) == 0:
-        blade = make_box("grass_blade", (0.05, 0.20, 0.055), C.GRASS_LIGHT)
-        blade.reparentTo(holder)
-        blade.setPos(0.76, 0.24, 0.012)
-        blade.setH(42)
-    if _hash(tile, 23) == 0:
+            flower.setPos(origin_x + x - 0.20, origin_y + y - 0.20, 0.015)
+    if _grass_noise(tile, 45) <= 0x0FFF:
         leaf = make_box("grass_fallen_leaf", (0.10, 0.045, 0.018), C.DIRT_LIGHT)
         leaf.reparentTo(holder)
-        leaf.setPos(0.44, 0.18, 0.013)
-        leaf.setH(-36)
+        leaf.setPos(_grass_offset(tile, 46), _grass_offset(tile, 47), 0.012)
+        leaf.setH((_grass_noise(tile, 48) % 90) - 45)
 
 
 def _render_dirt_tile(holder: NodePath, tile: Tile, edge_dirs: set[str]) -> None:
@@ -1140,6 +1127,28 @@ def _respawn_glow(holder: NodePath, name: str, state: ResourceNodeState, radius:
 def _palette_color(tile: Tile, palette: tuple[Color, ...]) -> Color:
     index = _hash(tile, 13) % len(palette)
     return palette[index]
+
+
+def _grass_base_color(tile: Tile) -> Color:
+    color = C.GRASS[_grass_noise(tile, 1) % len(C.GRASS)]
+    region = (tile[0] // 5, tile[1] // 5)
+    regional_tints = (C.GRASS_LIGHT, C.GRASS_DARK, C.GRASS_DRY, C.GRASS_SHADOW_PATCH)
+    tint = regional_tints[_grass_noise(region, 2) % len(regional_tints)]
+    factor = 0.07 + (_grass_noise(region, 3) % 5) * 0.01
+    return _lerp_color(color, tint, factor)
+
+
+def _grass_offset(tile: Tile, salt: int) -> float:
+    return 0.14 + (_grass_noise(tile, salt) % 73) / 100.0
+
+
+def _grass_noise(tile: Tile, salt: int) -> int:
+    x, y = tile
+    value = (x * 0x9E3779B1) ^ (y * 0x85EBCA77) ^ (salt * 0xC2B2AE3D)
+    value ^= value >> 16
+    value *= 0x7FEB352D
+    value ^= value >> 15
+    return value & 0xFFFF
 
 
 def _hash(tile: Tile, salt: int) -> int:

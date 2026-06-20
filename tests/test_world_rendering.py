@@ -79,6 +79,19 @@ def test_asset_renderer_hook_can_override_world_object_rendering() -> None:
         visuals.register_asset_renderer("shop", None)
 
 
+def test_grass_tiles_avoid_high_contrast_repeating_slabs() -> None:
+    parent = NodePath("test_render")
+
+    visuals.render_terrain_tile(parent, (2, 3), "grass", set())
+
+    tile = parent.find("**/tile_2_3")
+    assert tile.isEmpty() is False
+    assert tile.find("**/grass_base").isEmpty() is False
+    assert tile.find("**/grass_cross_tile_patch").isEmpty() is True
+    assert tile.find("**/grass_dirt_blend").isEmpty() is True
+    assert tile.find("**/grass_edge_blade_0").isEmpty() is True
+
+
 def test_ore_node_exposes_material_color_and_depleted_state() -> None:
     world = WorldMap(
         {
