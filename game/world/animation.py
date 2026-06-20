@@ -100,6 +100,16 @@ class SceneAnimator:
 
         self._replace(_Track(key, node, base, apply, reset_scale=True))
 
+    def start_shake(self, key: str, node: Any, *, amplitude: float = 0.04, speed: float = 14.0) -> None:
+        base = _capture(node)
+
+        def apply(track: _Track) -> None:
+            x = track.base.pos[0] + math.sin(track.elapsed * speed) * amplitude
+            y = track.base.pos[1] + math.cos(track.elapsed * speed * 0.7) * amplitude * 0.55
+            _set_pos(track.node, (x, y, track.base.pos[2]))
+
+        self._replace(_Track(key, node, base, apply, reset_pos=True))
+
     def start_tilt(
         self,
         key: str,

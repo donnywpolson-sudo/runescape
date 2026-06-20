@@ -244,6 +244,7 @@ def test_gathering_animation_starts_and_move_cancels_it() -> None:
     manager.interact_with(tree)
 
     assert gathering.pending is not None
+    assert ("start_shake", "action:target_shake") in animator.calls
     assert ("start_tilt", "action:target") in animator.calls
     assert ("start_pulse", "action:target_pulse") in animator.calls
 
@@ -562,6 +563,9 @@ class _Animator:
 
     def start_pulse(self, key: str, node: object, **_kwargs: object) -> None:
         self.calls.append(("start_pulse", key))
+
+    def start_shake(self, key: str, node: object, **_kwargs: object) -> None:
+        self.calls.append(("start_shake", key))
 
 
 class _AnimNode:

@@ -490,10 +490,11 @@ class InteractionManager:
         obj: WorldObject | None,
         skill_id: str | None = None,
     ) -> None:
-        if self.animator is None:
-            return
         self._stop_action_animation()
         self._face_object(obj)
+        self._start_player_action(action_id, skill_id)
+        if self.animator is None:
+            return
 
         parts = getattr(self.player, "parts", {}) or {}
         player_node = getattr(self.player, "node", None)
@@ -504,11 +505,13 @@ class InteractionManager:
         if action_id == "gathering" and skill_id == "woodcutting":
             self._start_anim("start_swing", "action:arm", right_arm, axis="p", amplitude=38.0, speed=8.8)
             self._start_anim("start_swing", "action:tool", tool, axis="p", amplitude=56.0, speed=8.8, phase=0.35)
+            self._start_anim("start_shake", "action:target_shake", target, amplitude=0.020, speed=13.0)
             self._start_anim("start_tilt", "action:target", target, roll=4.5, speed=9.0)
             self._start_anim("start_pulse", "action:target_pulse", target, amplitude=0.025, speed=9.0)
         elif action_id == "gathering" and skill_id == "mining":
             self._start_anim("start_swing", "action:arm", right_arm, axis="p", amplitude=44.0, speed=9.5)
             self._start_anim("start_swing", "action:tool", tool, axis="p", amplitude=62.0, speed=9.5, phase=0.25)
+            self._start_anim("start_shake", "action:target_shake", target, amplitude=0.030, speed=16.0)
             self._start_anim("start_tilt", "action:target", target, pitch=2.5, roll=4.0, speed=11.0)
             self._start_anim("start_flash", "action:target_flash", target, color=(1.20, 1.15, 0.90, 1.0), speed=8.0)
         elif action_id == "gathering" and skill_id == "fishing":
@@ -536,8 +539,19 @@ class InteractionManager:
             self._start_anim("start_bob", "action:combat_bob", player_node, amplitude=0.018, speed=7.8)
 
     def _stop_action_animation(self) -> None:
+        stop_player = getattr(self.player, "stop_action_animation", None)
+        if callable(stop_player):
+            stop_player()
         if self.animator is not None and hasattr(self.animator, "stop_prefix"):
             self.animator.stop_prefix("action:")
+
+    def _start_player_action(self, action_id: str, skill_id: str | None) -> None:
+        start_player = getattr(self.player, "start_action_animation", None)
+        if not callable(start_player):
+            return
+        player_action = skill_id if action_id == "gathering" else action_id
+        if player_action is not None:
+            start_player(player_action)
 
     def _animate_hit(self, obj: WorldObject | None) -> None:
         if obj is None or self.animator is None:

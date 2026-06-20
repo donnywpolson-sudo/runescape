@@ -343,6 +343,11 @@ def _render_tree(holder: NodePath, name: str, tier: int) -> None:
     branch.setPos(0.06, -0.04, 0.68)
     branch.setH(-34)
 
+    bark_mark = make_box(f"{name}_bark_mark", (0.055, 0.035, 0.34), C.BARK_HIGHLIGHT)
+    bark_mark.reparentTo(holder)
+    bark_mark.setPos(0.09, -0.11, 0.32)
+    bark_mark.setH(8)
+
     lower = make_cone(f"{name}_leaves_lower", 0.66, 0.62, 7, leaf_dark)
     lower.reparentTo(holder)
     lower.setZ(0.58)
@@ -459,6 +464,11 @@ def _render_fishing_spot(holder: NodePath, name: str, tier: int) -> None:
     bobber_top = make_box(f"{name}_buoy_top", (0.08, 0.08, 0.025), C.WATER_SHIMMER)
     bobber_top.reparentTo(holder)
     bobber_top.setPos(0.22, -0.14, 0.13)
+    for index, x in enumerate((-0.31, -0.25, 0.30)):
+        reed = make_box(f"{name}_reed_{index}", (0.025, 0.035, 0.18 + index * 0.025), C.REED)
+        reed.reparentTo(holder)
+        reed.setPos(x, 0.20 - index * 0.09, 0.035)
+        reed.setH(-18 + index * 16)
 
 
 def _render_quiet_water(holder: NodePath, name: str, state: ResourceNodeState) -> None:
@@ -613,6 +623,10 @@ def _render_furnace(holder: NodePath, name: str) -> None:
     vent = make_cone(f"{name}_vent", 0.19, 0.16, 8, C.ASH)
     vent.reparentTo(holder)
     vent.setZ(1.00)
+    for index, (x, y, z) in enumerate(((-0.06, 0.02, 1.16), (0.05, 0.00, 1.25), (0.0, 0.04, 1.34))):
+        smoke = make_cylinder(f"{name}_smoke_{index}", 0.06 + index * 0.018, 0.025, 7, C.SMOKE)
+        smoke.reparentTo(holder)
+        smoke.setPos(x, y, z)
 
 
 def _render_anvil(holder: NodePath, name: str) -> None:
@@ -624,6 +638,9 @@ def _render_anvil(holder: NodePath, name: str) -> None:
     body = make_box(f"{name}_body", (0.46, 0.22, 0.16), C.STONE_DARK)
     body.reparentTo(holder)
     body.setZ(0.30)
+    plate = make_box(f"{name}_plate", (0.38, 0.18, 0.035), C.STONE_LIGHT)
+    plate.reparentTo(holder)
+    plate.setZ(0.46)
 
     horn = make_cone(f"{name}_horn", 0.16, 0.26, 5, C.STONE)
     horn.reparentTo(holder)
@@ -672,6 +689,12 @@ def _render_mob(holder: NodePath, obj: WorldObject) -> None:
     shoulder.reparentTo(holder)
     shoulder.setPos(0.0, -0.02, 0.50)
     shoulder.setH(-10)
+
+    for index, x in enumerate((-0.13, 0.13)):
+        foot = make_box(f"{obj.object_id}_foot_{index}", (0.16, 0.20, 0.08), C.STONE_DARK)
+        foot.reparentTo(holder)
+        foot.setPos(x, -0.02, 0.02)
+        foot.setH(10 if index == 0 else -10)
 
     ring = make_ground_ring(f"{obj.object_id}_combat_ring", 0.34, accent, thickness=1.4)
     ring.reparentTo(holder)

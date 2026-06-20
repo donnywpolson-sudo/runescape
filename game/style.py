@@ -41,6 +41,7 @@ class WorldPalette:
 
     TRUNK = (0.35, 0.18, 0.08, 1.0)
     TRUNK_DARK = (0.20, 0.10, 0.04, 1.0)
+    BARK_HIGHLIGHT = (0.58, 0.34, 0.14, 1.0)
     STUMP = (0.46, 0.26, 0.11, 1.0)
     STUMP_TOP = (0.72, 0.51, 0.28, 1.0)
     RESOURCE_RING = (0.98, 0.78, 0.28, 1.0)
@@ -58,6 +59,8 @@ class WorldPalette:
     SPARK = (1.0, 0.88, 0.36, 1.0)
     DEPLETED_MARK = (0.72, 0.58, 0.36, 1.0)
     FISH_BUOY = (0.90, 0.18, 0.12, 1.0)
+    REED = (0.40, 0.48, 0.20, 1.0)
+    SMOKE = (0.48, 0.46, 0.42, 0.72)
 
     PLAYER_TUNIC = (0.16, 0.32, 0.58, 1.0)
     PLAYER_SLEEVE = (0.10, 0.20, 0.36, 1.0)

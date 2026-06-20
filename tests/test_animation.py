@@ -34,6 +34,19 @@ def test_one_shot_animation_finishes_and_restores() -> None:
     assert animator.active_keys() == set()
 
 
+def test_shake_animation_cancels_and_restores_position() -> None:
+    animator = SceneAnimator()
+    node = _FakeNode()
+
+    animator.start_shake("action:shake", node, amplitude=0.50, speed=math.pi)
+    animator.update(0.5)
+
+    assert node.pos[0] == 0.5
+
+    assert animator.stop("action:shake")
+    assert node.pos == (0.0, 0.0, 0.0)
+
+
 def test_defeat_animation_removes_temporary_node() -> None:
     animator = SceneAnimator()
     node = _FakeNode()
