@@ -27,6 +27,29 @@
       "skill_rewards": [
         {"skill_id": "smithing", "xp": 40}
       ]
+    },
+    {
+      "quest_id": "trail_supplies",
+      "display_name": "Trail supplies",
+      "start_text": "Warden: Check the bank, trade at the store, and clear one threat from the road, then report back.",
+      "in_progress_text": "Warden: The road is not ready yet. Still needed: {missing_objectives}.",
+      "completed_text": "Warden: The road crew can move again thanks to you.",
+      "completion_text": "Quest complete: Trail supplies. Reward: 35 coins, +25 Defence XP.",
+      "not_started_objective": "Talk to the Trail Warden.",
+      "return_objective": "Return to the Trail Warden.",
+      "completed_objective": "Trail supplies complete.",
+      "progress_format": "Trail supplies {completed}/{total}: {objective}.",
+      "objectives": [
+        {"flag": "used_bank", "label": "Use the bank"},
+        {"flag": "used_shop", "label": "Use the shop"},
+        {"flag": "defeated_enemy", "label": "Defeat an enemy"}
+      ],
+      "item_rewards": [
+        {"item_id": "coins", "quantity": 35}
+      ],
+      "skill_rewards": [
+        {"skill_id": "defence", "xp": 25}
+      ]
     }
   ]
 }

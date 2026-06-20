@@ -994,6 +994,15 @@
         13
       ],
       "quest_id": "starter_path"
+    },
+    {
+      "id": "trail_warden_01",
+      "name": "Trail Warden",
+      "tile": [
+        17,
+        13
+      ],
+      "quest_id": "trail_supplies"
     }
   ]
 }

@@ -507,8 +507,11 @@ class GameApp(ShowBase):
         self._update_hud()
 
     def talk_to_npc(self, obj) -> None:
-        if obj.quest_id == "starter_path":
-            result = self.quest.talk_to_starter()
+        if obj.quest_id:
+            result = self.quest.talk_to(obj.quest_id)
+            if not result.feedback:
+                self.set_feedback(f"{obj.display_name}: Hello.")
+                return
             self._apply_quest_rewards(result)
             self.set_feedback(result.feedback)
             self._update_hud()

@@ -96,6 +96,37 @@ def test_starter_quest_loads_text_objectives_and_rewards_from_data() -> None:
     assert [(reward.skill_id, reward.xp) for reward in completed.skill_rewards] == [("smithing", 9)]
 
 
+def test_multiple_data_quests_track_state_independently() -> None:
+    quest = QuestSystem(_multi_quest_data())
+
+    started = quest.talk_to("trail_supplies")
+
+    assert started.feedback == "Warden: Ready the road."
+    assert quest.current_objective().text == "Trail supplies 0/2: Use the bank."
+
+    quest.record("used_bank")
+
+    assert quest.current_objective().text == "Trail supplies 1/2: Use the shop."
+
+    starter = quest.talk_to_starter()
+
+    assert starter.feedback == "Guide: Start here."
+    assert quest.current_objective().text == "Starter path 0/1: Cook food."
+
+    quest.talk_to("trail_supplies")
+    quest.record("used_shop")
+    completed = quest.talk_to("trail_supplies")
+
+    assert completed.completed is True
+    assert completed.feedback == "Quest complete: Trail supplies."
+    assert [(reward.item_id, reward.quantity) for reward in completed.item_rewards] == [(COINS_ITEM_ID, 11)]
+    assert [(reward.skill_id, reward.xp) for reward in completed.skill_rewards] == [("defence", 12)]
+
+    quest.talk_to_starter()
+
+    assert quest.current_objective().text == "Starter path 0/1: Cook food."
+
+
 def test_quest_state_round_trip() -> None:
     quest = QuestSystem()
     quest.talk_to_starter()
@@ -107,6 +138,31 @@ def test_quest_state_round_trip() -> None:
 
     assert loaded.state.started is True
     assert loaded.state.flags == {"cooked_food", "used_shop"}
+
+
+def test_multiple_quest_state_round_trip_preserves_active_quest() -> None:
+    quest = QuestSystem(_multi_quest_data())
+    quest.talk_to("trail_supplies")
+    quest.record("used_bank")
+    saved = quest.to_dict()
+
+    loaded = QuestSystem(_multi_quest_data())
+    loaded.load_dict(saved)
+
+    assert loaded.active_quest_id == "trail_supplies"
+    assert loaded.current_objective().text == "Trail supplies 1/2: Use the shop."
+    assert loaded.states["trail_supplies"].flags == {"used_bank"}
+
+
+def test_legacy_single_quest_state_still_loads() -> None:
+    quest = QuestSystem()
+
+    quest.load_dict({"quest_id": "starter_path", "started": True, "flags": ["cooked_food"]})
+
+    assert quest.active_quest_id == "starter_path"
+    assert quest.state.started is True
+    assert quest.state.flags == {"cooked_food"}
+    assert quest.current_objective().text == "Starter path 1/8: Smelt a bar."
 
 
 def test_quest_system_accepts_existing_state_as_first_argument() -> None:
@@ -149,6 +205,44 @@ def test_starter_quest_objective_tracks_next_step_and_completion() -> None:
     assert objective.completed is True
 
 
+def test_app_talk_to_npc_routes_data_defined_quest_and_rewards_once() -> None:
+    quest = QuestSystem(_multi_quest_data())
+    feedback: list[str] = []
+    updates: list[bool] = []
+    app = SimpleNamespace(
+        quest=quest,
+        inventory=Inventory(),
+        skills=Skills(
+            {
+                "defence": {
+                    "display_name": "Defence",
+                    "starting_level": 1,
+                    "xp_thresholds": skill_xp_thresholds(),
+                }
+            }
+        ),
+        set_feedback=feedback.append,
+        _update_hud=lambda: updates.append(True),
+    )
+    app._apply_quest_rewards = lambda result: GameApp._apply_quest_rewards(app, result)
+    npc = SimpleNamespace(quest_id="trail_supplies", display_name="Trail Warden")
+
+    GameApp.talk_to_npc(app, npc)
+    quest.record("used_bank")
+    quest.record("used_shop")
+    GameApp.talk_to_npc(app, npc)
+    GameApp.talk_to_npc(app, npc)
+
+    assert feedback == [
+        "Warden: Ready the road.",
+        "Quest complete: Trail supplies.",
+        "Warden: Road stores are ready.",
+    ]
+    assert app.inventory.count(COINS_ITEM_ID) == 11
+    assert app.skills.xp("defence") == 12
+    assert updates == [True, True, True]
+
+
 def _quest_data() -> dict[str, object]:
     return {
         "quests": [
@@ -170,5 +264,47 @@ def _quest_data() -> dict[str, object]:
                 "item_rewards": [{"item_id": COINS_ITEM_ID, "quantity": 7}],
                 "skill_rewards": [{"skill_id": "smithing", "xp": 9}],
             }
+        ]
+    }
+
+
+def _multi_quest_data() -> dict[str, object]:
+    return {
+        "quests": [
+            {
+                "quest_id": "starter_path",
+                "display_name": "Starter path",
+                "start_text": "Guide: Start here.",
+                "in_progress_text": "Guide: Missing: {missing_objectives}.",
+                "completed_text": "Guide: Done.",
+                "completion_text": "Quest complete: Starter path.",
+                "not_started_objective": "Talk to the guide.",
+                "return_objective": "Return to the guide.",
+                "completed_objective": "Starter path complete.",
+                "progress_format": "Starter path {completed}/{total}: {objective}.",
+                "objectives": [
+                    {"flag": "cooked_food", "label": "Cook food"},
+                ],
+                "item_rewards": [],
+                "skill_rewards": [],
+            },
+            {
+                "quest_id": "trail_supplies",
+                "display_name": "Trail supplies",
+                "start_text": "Warden: Ready the road.",
+                "in_progress_text": "Warden: Missing: {missing_objectives}.",
+                "completed_text": "Warden: Road stores are ready.",
+                "completion_text": "Quest complete: Trail supplies.",
+                "not_started_objective": "Talk to the Trail Warden.",
+                "return_objective": "Return to the Trail Warden.",
+                "completed_objective": "Trail supplies complete.",
+                "progress_format": "Trail supplies {completed}/{total}: {objective}.",
+                "objectives": [
+                    {"flag": "used_bank", "label": "Use the bank"},
+                    {"flag": "used_shop", "label": "Use the shop"},
+                ],
+                "item_rewards": [{"item_id": COINS_ITEM_ID, "quantity": 11}],
+                "skill_rewards": [{"skill_id": "defence", "xp": 12}],
+            },
         ]
     }

@@ -16,13 +16,18 @@ class QuestState:
     flags: set[str] = field(default_factory=set)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any] | None, valid_flags: Iterable[str] | None = None) -> "QuestState":
+    def from_dict(
+        cls,
+        data: dict[str, Any] | None,
+        valid_flags: Iterable[str] | None = None,
+        default_quest_id: str = STARTER_QUEST_ID,
+    ) -> "QuestState":
         if not isinstance(data, dict):
-            return cls()
+            return cls(quest_id=default_quest_id)
         flags = data.get("flags", [])
         valid_flag_set = set(valid_flags) if valid_flags is not None else None
         return cls(
-            quest_id=str(data.get("quest_id") or STARTER_QUEST_ID),
+            quest_id=str(data.get("quest_id") or default_quest_id),
             started=bool(data.get("started", False)),
             completed=bool(data.get("completed", False)),
             flags={str(flag) for flag in flags if valid_flag_set is None or str(flag) in valid_flag_set},
@@ -131,54 +136,126 @@ class QuestSystem:
             definitions_data = None
         self.definitions = quest_definitions_from_data(definitions_data)
         self.definition = self.definitions.get(STARTER_QUEST_ID, STARTER_QUEST_DEFINITION)
-        self.state = state or QuestState(quest_id=self.definition.quest_id)
+        self.active_quest_id = state.quest_id if state is not None else self.definition.quest_id
+        self.states: dict[str, QuestState] = {}
+        if state is not None:
+            self.states[state.quest_id] = state
 
     def talk_to_starter(self) -> QuestResult:
-        if self.state.completed:
-            return QuestResult(self.definition.completed_text)
-        if not self.state.started:
-            self.state.started = True
-            return QuestResult(self.definition.start_text)
-        missing = [objective for objective in self.definition.objectives if objective.flag not in self.state.flags]
+        return self.talk_to(STARTER_QUEST_ID)
+
+    def talk_to(self, quest_id: str) -> QuestResult:
+        definition = self.definitions.get(quest_id)
+        if definition is None:
+            return QuestResult("")
+        self.active_quest_id = definition.quest_id
+        state = self._state_for(definition.quest_id)
+        if state.completed:
+            return QuestResult(definition.completed_text)
+        if not state.started:
+            state.started = True
+            return QuestResult(definition.start_text)
+        missing = [objective for objective in definition.objectives if objective.flag not in state.flags]
         if missing:
             missing_text = ", ".join(objective.label.lower() for objective in missing)
-            return QuestResult(self.definition.in_progress_text.format(missing_objectives=missing_text))
-        self.state.completed = True
+            return QuestResult(definition.in_progress_text.format(missing_objectives=missing_text))
+        state.completed = True
         return QuestResult(
-            self.definition.completion_text,
+            definition.completion_text,
             completed=True,
-            item_rewards=self.definition.item_rewards,
-            skill_rewards=self.definition.skill_rewards,
+            item_rewards=definition.item_rewards,
+            skill_rewards=definition.skill_rewards,
         )
 
     def record(self, flag: str) -> bool:
-        if flag not in self.definition.flags or self.state.completed:
-            return False
-        self.state.flags.add(flag)
-        return True
+        recorded = False
+        for quest_id, definition in self.definitions.items():
+            if flag not in definition.flags:
+                continue
+            state = self.states.get(quest_id)
+            if state is None:
+                if quest_id != self.active_quest_id:
+                    continue
+                state = self._state_for(quest_id)
+            if state.completed:
+                continue
+            state.flags.add(flag)
+            recorded = True
+        return recorded
 
     def current_objective(self) -> QuestObjective:
-        if self.state.completed:
-            return QuestObjective(self.definition.completed_objective, completed=True)
-        if not self.state.started:
-            return QuestObjective(self.definition.not_started_objective)
-        missing = [objective for objective in self.definition.objectives if objective.flag not in self.state.flags]
+        definition = self.definitions.get(self.active_quest_id, self.definition)
+        state = self._state_for(definition.quest_id)
+        if state.completed:
+            return QuestObjective(definition.completed_objective, completed=True)
+        if not state.started:
+            return QuestObjective(definition.not_started_objective)
+        missing = [objective for objective in definition.objectives if objective.flag not in state.flags]
         if not missing:
-            return QuestObjective(self.definition.return_objective)
-        progress = len(self.definition.objectives) - len(missing)
+            return QuestObjective(definition.return_objective)
+        progress = len(definition.objectives) - len(missing)
         return QuestObjective(
-            self.definition.progress_format.format(
+            definition.progress_format.format(
                 completed=progress,
-                total=len(self.definition.objectives),
+                total=len(definition.objectives),
                 objective=missing[0].label,
             )
         )
 
     def to_dict(self) -> dict[str, object]:
-        return self.state.to_dict()
+        quests = {
+            quest_id: state.to_dict()
+            for quest_id, state in sorted(self.states.items())
+            if state.started or state.completed or state.flags
+        }
+        if not quests:
+            return {}
+        return {
+            "active_quest_id": self.active_quest_id,
+            "quests": quests,
+        }
 
     def load_dict(self, data: dict[str, Any] | None) -> None:
-        self.state = QuestState.from_dict(data, self.definition.flags)
+        self.states.clear()
+        self.active_quest_id = self.definition.quest_id
+        if not isinstance(data, dict) or not data:
+            return
+        raw_states = data.get("quests")
+        if isinstance(raw_states, dict):
+            for quest_id, raw_state in raw_states.items():
+                if quest_id not in self.definitions:
+                    continue
+                definition = self.definitions[quest_id]
+                state = QuestState.from_dict(raw_state, definition.flags, definition.quest_id)
+                state.quest_id = definition.quest_id
+                self.states[definition.quest_id] = state
+            active_quest_id = str(data.get("active_quest_id") or self.definition.quest_id)
+            if active_quest_id in self.definitions:
+                self.active_quest_id = active_quest_id
+            return
+
+        state = QuestState.from_dict(data, self.definition.flags, self.definition.quest_id)
+        if state.quest_id not in self.definitions:
+            state.quest_id = self.definition.quest_id
+        self.states[state.quest_id] = state
+        self.active_quest_id = state.quest_id
+
+    @property
+    def state(self) -> QuestState:
+        return self._state_for(self.active_quest_id)
+
+    @state.setter
+    def state(self, state: QuestState) -> None:
+        self.active_quest_id = state.quest_id
+        self.states[state.quest_id] = state
+
+    def _state_for(self, quest_id: str) -> QuestState:
+        definition = self.definitions.get(quest_id, self.definition)
+        state = self.states.get(definition.quest_id)
+        if state is None:
+            state = QuestState(quest_id=definition.quest_id)
+            self.states[definition.quest_id] = state
+        return state
 
 
 def quest_definitions_from_data(data: dict[str, Any] | None) -> dict[str, QuestDefinition]:

@@ -280,6 +280,23 @@ def test_shipped_high_tier_content_uses_original_starsteel_ids() -> None:
     assert node["item_reward"] == "starsteel_ore"
 
 
+def test_shipped_trail_supplies_quest_links_to_original_npc() -> None:
+    items = _load_data("items.json")
+    skills = _load_data("skills.json")
+    recipes = _load_data("recipes.json")
+    quests = _load_data("quests.json")
+    world = _load_data("world.json")
+
+    validate_all(items, skills, world, recipes, quests)
+
+    quest_ids = {quest["quest_id"] for quest in quests["quests"]}
+    npcs_by_id = {npc["id"]: npc for npc in world["npcs"]}
+
+    assert "trail_supplies" in quest_ids
+    assert npcs_by_id["trail_warden_01"]["name"] == "Trail Warden"
+    assert npcs_by_id["trail_warden_01"]["quest_id"] == "trail_supplies"
+
+
 def _items() -> dict[str, dict[str, object]]:
     return {
         "coins": {"name": "Coins", "category": "currency", "sell_price": 0},
