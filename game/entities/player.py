@@ -1,13 +1,18 @@
 from __future__ import annotations
 
+import math
+
 from panda3d.core import NodePath, Vec3
 
 from game import settings
 from game.world.grid import Tile, TileGrid
-from game.world.objects import make_cone, make_cylinder
+from game.world.objects import make_box, make_cone, make_cylinder
 
-BODY = (0.82, 0.28, 0.18, 1.0)
-HEAD = (0.95, 0.76, 0.55, 1.0)
+TUNIC = (0.22, 0.38, 0.62, 1.0)
+SLEEVE = (0.16, 0.24, 0.38, 1.0)
+TROUSERS = (0.24, 0.18, 0.14, 1.0)
+SKIN = (0.88, 0.67, 0.46, 1.0)
+HAIR = (0.24, 0.13, 0.05, 1.0)
 
 
 class Player:
@@ -17,14 +22,39 @@ class Player:
         self.x, self.y = grid.to_world(start_tile)
         self.path: list[Tile] = []
         self.node: NodePath | None = None
+        self.heading = 0.0
 
     def render(self, parent: NodePath) -> None:
         self.node = parent.attachNewNode("player")
-        body = make_cylinder("player_body", 0.22, 0.75, 12, BODY)
+
+        left_leg = make_box("player_left_leg", (0.11, 0.12, 0.34), TROUSERS)
+        left_leg.reparentTo(self.node)
+        left_leg.setPos(-0.08, 0.0, 0.02)
+
+        right_leg = make_box("player_right_leg", (0.11, 0.12, 0.34), TROUSERS)
+        right_leg.reparentTo(self.node)
+        right_leg.setPos(0.08, 0.0, 0.02)
+
+        body = make_box("player_body", (0.34, 0.24, 0.44), TUNIC)
         body.reparentTo(self.node)
-        head = make_cone("player_head", 0.18, 0.28, 12, HEAD)
+        body.setZ(0.34)
+
+        left_arm = make_box("player_left_arm", (0.09, 0.10, 0.34), SLEEVE)
+        left_arm.reparentTo(self.node)
+        left_arm.setPos(-0.25, 0.0, 0.38)
+
+        right_arm = make_box("player_right_arm", (0.09, 0.10, 0.34), SLEEVE)
+        right_arm.reparentTo(self.node)
+        right_arm.setPos(0.25, 0.0, 0.38)
+
+        head = make_cylinder("player_head", 0.16, 0.20, 8, SKIN)
         head.reparentTo(self.node)
-        head.setZ(0.75)
+        head.setZ(0.80)
+
+        hair = make_cone("player_hair", 0.17, 0.12, 8, HAIR)
+        hair.reparentTo(self.node)
+        hair.setZ(0.99)
+
         self._sync_node()
 
     @property
@@ -53,6 +83,7 @@ class Player:
             self.tile = target_tile
             self.path.pop(0)
         else:
+            self.heading = math.degrees(math.atan2(-dx, dy))
             self.x += dx / distance * step
             self.y += dy / distance * step
 
@@ -84,3 +115,4 @@ class Player:
     def _sync_node(self) -> None:
         if self.node is not None:
             self.node.setPos(Vec3(self.x, self.y, 0.02))
+            self.node.setH(self.heading)

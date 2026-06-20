@@ -32,7 +32,7 @@ class WorldObject:
 
     @property
     def is_interactable(self) -> bool:
-        return self.kind == "shop" or self.is_resource_node or self.depleted
+        return self.kind in {"shop", "bank"} or self.is_resource_node or self.depleted
 
     @property
     def is_resource_node(self) -> bool:

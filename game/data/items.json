@@ -1,14 +1,77 @@
 {
   "logs": {
     "name": "Logs",
+    "category": "wood",
     "sell_price": 3
+  },
+  "oak_logs": {
+    "name": "Oak logs",
+    "category": "wood",
+    "sell_price": 6
+  },
+  "willow_logs": {
+    "name": "Willow logs",
+    "category": "wood",
+    "sell_price": 10
+  },
+  "maple_logs": {
+    "name": "Maple logs",
+    "category": "wood",
+    "sell_price": 16
+  },
+  "yew_logs": {
+    "name": "Yew logs",
+    "category": "wood",
+    "sell_price": 25
+  },
+  "raw_shrimp": {
+    "name": "Raw shrimp",
+    "category": "fish",
+    "sell_price": 4
+  },
+  "raw_trout": {
+    "name": "Raw trout",
+    "category": "fish",
+    "sell_price": 7
+  },
+  "raw_salmon": {
+    "name": "Raw salmon",
+    "category": "fish",
+    "sell_price": 10
+  },
+  "raw_lobster": {
+    "name": "Raw lobster",
+    "category": "fish",
+    "sell_price": 16
+  },
+  "raw_swordfish": {
+    "name": "Raw swordfish",
+    "category": "fish",
+    "sell_price": 24
   },
   "copper_ore": {
     "name": "Copper ore",
+    "category": "ore",
     "sell_price": 5
   },
-  "raw_fish": {
-    "name": "Raw fish",
-    "sell_price": 4
+  "iron_ore": {
+    "name": "Iron ore",
+    "category": "ore",
+    "sell_price": 8
+  },
+  "coal": {
+    "name": "Coal",
+    "category": "ore",
+    "sell_price": 12
+  },
+  "mithril_ore": {
+    "name": "Mithril ore",
+    "category": "ore",
+    "sell_price": 20
+  },
+  "adamant_ore": {
+    "name": "Adamant ore",
+    "category": "ore",
+    "sell_price": 32
   }
 }

@@ -74,6 +74,7 @@ def create_default_save(username: str) -> dict[str, Any]:
                 "zoom": 22.0,
             },
             "inventory": {},
+            "bank": {},
             "coins": 0,
             "skills": {
                 "woodcutting": {"xp": 0, "level": 1},

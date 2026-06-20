@@ -16,9 +16,18 @@ class TileGrid:
         x, y = tile
         return 0 <= x < self.width and 0 <= y < self.height
 
-    def neighbors(self, tile: Tile) -> list[Tile]:
+    def neighbors(self, tile: Tile, *, diagonals: bool = False) -> list[Tile]:
         x, y = tile
         candidates = [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]
+        if diagonals:
+            candidates.extend(
+                [
+                    (x + 1, y + 1),
+                    (x + 1, y - 1),
+                    (x - 1, y + 1),
+                    (x - 1, y - 1),
+                ]
+            )
         return [candidate for candidate in candidates if self.in_bounds(candidate)]
 
     def to_world(self, tile: Tile) -> tuple[float, float]:

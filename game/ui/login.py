@@ -12,6 +12,13 @@ from game.engine import auth, save
 
 LOGGER = logging.getLogger(__name__)
 
+PANEL = (0.22, 0.15, 0.08, 0.94)
+PANEL_DARK = (0.10, 0.07, 0.04, 1.0)
+BUTTON = (0.48, 0.34, 0.16, 1.0)
+BUTTON_HOVER = (0.60, 0.43, 0.21, 1.0)
+TEXT = (0.96, 0.88, 0.68, 1.0)
+GOLD = (1.0, 0.78, 0.28, 1.0)
+
 
 class LoginScreen:
     def __init__(
@@ -34,7 +41,7 @@ class LoginScreen:
 
     def _build(self) -> None:
         frame = DirectFrame(
-            frameColor=(0.08, 0.10, 0.08, 0.92),
+            frameColor=PANEL,
             frameSize=(-0.62, 0.62, -0.38, 0.38),
             pos=(0, 0, 0),
         )
@@ -44,7 +51,7 @@ class LoginScreen:
             scale=0.075,
             pos=(0, 0, 0.27),
             frameColor=(0, 0, 0, 0),
-            text_fg=(1, 0.92, 0.65, 1),
+            text_fg=GOLD,
         )
         username_label = DirectLabel(
             parent=frame,
@@ -52,7 +59,7 @@ class LoginScreen:
             scale=0.038,
             pos=(-0.34, 0, 0.19),
             frameColor=(0, 0, 0, 0),
-            text_fg=(0.95, 0.95, 0.90, 1),
+            text_fg=TEXT,
         )
         self.username = DirectEntry(
             parent=frame,
@@ -60,6 +67,8 @@ class LoginScreen:
             width=18,
             scale=0.052,
             pos=(-0.46, 0, 0.12),
+            frameColor=PANEL_DARK,
+            text_fg=TEXT,
             focus=1,
             command=self._login,
         )
@@ -69,7 +78,7 @@ class LoginScreen:
             scale=0.038,
             pos=(-0.34, 0, 0.05),
             frameColor=(0, 0, 0, 0),
-            text_fg=(0.95, 0.95, 0.90, 1),
+            text_fg=TEXT,
         )
         self.password = DirectEntry(
             parent=frame,
@@ -77,6 +86,8 @@ class LoginScreen:
             width=18,
             scale=0.052,
             pos=(-0.46, 0, -0.02),
+            frameColor=PANEL_DARK,
+            text_fg=TEXT,
             obscured=1,
             command=self._login,
         )
@@ -85,6 +96,8 @@ class LoginScreen:
             text="Login",
             scale=0.052,
             pos=(-0.18, 0, -0.17),
+            frameColor=(BUTTON, BUTTON_HOVER, BUTTON_HOVER, BUTTON),
+            text_fg=TEXT,
             command=self._login,
         )
         register_button = DirectButton(
@@ -92,6 +105,8 @@ class LoginScreen:
             text="Register",
             scale=0.052,
             pos=(0.20, 0, -0.17),
+            frameColor=(BUTTON, BUTTON_HOVER, BUTTON_HOVER, BUTTON),
+            text_fg=TEXT,
             command=self._register,
         )
         quit_button = DirectButton(
@@ -99,6 +114,8 @@ class LoginScreen:
             text="Quit",
             scale=0.046,
             pos=(0, 0, -0.27),
+            frameColor=(BUTTON, BUTTON_HOVER, BUTTON_HOVER, BUTTON),
+            text_fg=TEXT,
             command=self.app.userExit,
         )
         self.status = DirectLabel(
@@ -107,7 +124,7 @@ class LoginScreen:
             scale=0.042,
             pos=(0, 0, -0.34),
             frameColor=(0, 0, 0, 0),
-            text_fg=(0.95, 0.86, 0.45, 1),
+            text_fg=GOLD,
         )
         self.widgets.extend([
             frame,

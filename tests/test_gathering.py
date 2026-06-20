@@ -15,17 +15,17 @@ SKILLS = {
     "woodcutting": {
         "display_name": "Woodcutting",
         "starting_level": 1,
-        "xp_thresholds": {"1": 0, "2": 100},
+        "xp_thresholds": {"1": 0, "2": 100, "3": 250},
     },
     "mining": {
         "display_name": "Mining",
         "starting_level": 1,
-        "xp_thresholds": {"1": 0, "2": 100},
+        "xp_thresholds": {"1": 0, "2": 100, "3": 250},
     },
     "fishing": {
         "display_name": "Fishing",
         "starting_level": 1,
-        "xp_thresholds": {"1": 0, "2": 100},
+        "xp_thresholds": {"1": 0, "2": 100, "3": 250},
     },
 }
 
@@ -39,73 +39,114 @@ class FakeClock:
 
 
 class GatheringTests(unittest.TestCase):
-    def test_gathering_grants_correct_item_and_skill_xp(self) -> None:
-        system, inventory, skills, grid = _system([_tree()])
+    def test_gathering_completes_after_timer_and_grants_rewards(self) -> None:
+        system, inventory, skills, grid, clock = _system([_tree()])
 
-        result = system.gather("tree_01", (1, 2), grid, system.blocking_tiles())
+        started = system.start_gather("tree_01", (1, 2), grid, system.blocking_tiles())
 
-        self.assertTrue(result.success)
+        self.assertTrue(started.success)
+        self.assertTrue(started.pending)
+        self.assertEqual(started.feedback, "Chopping Tree... 2.0s")
+        self.assertEqual(inventory.count("logs"), 0)
+        self.assertIsNone(system.update())
+
+        clock.now += 2.0
+        completed = system.update()
+
+        assert completed is not None
+        self.assertTrue(completed.success)
         self.assertEqual(inventory.count("logs"), 1)
         self.assertEqual(skills.xp("woodcutting"), 25)
-        self.assertEqual(result.feedback, "Chopped tree: +1 logs, +25 Woodcutting XP")
+        self.assertEqual(completed.feedback, "Chopped Tree: +1 logs, +25 Woodcutting XP")
 
-    def test_required_level_blocks_gathering(self) -> None:
-        rock = _rock(required_level=2)
-        system, inventory, skills, grid = _system([rock])
+    def test_diagonal_adjacency_can_start_gathering(self) -> None:
+        system, _, _, grid, _ = _system([_tree()])
 
-        result = system.gather("copper_rock_01", (1, 2), grid, system.blocking_tiles())
+        result = system.start_gather("tree_01", (1, 1), grid, system.blocking_tiles())
 
-        self.assertFalse(result.success)
-        self.assertEqual(result.feedback, "You need Mining level 2")
-        self.assertEqual(inventory.count("copper_ore"), 0)
-        self.assertEqual(skills.xp("mining"), 0)
+        self.assertTrue(result.success)
+        self.assertTrue(result.pending)
+        self.assertEqual(result.new_player_tile, None)
+
+    def test_required_level_blocks_each_skill(self) -> None:
+        for node, start_tile, feedback in [
+            (_tree(required_level=2), (1, 2), "You need Woodcutting level 2"),
+            (_rock(required_level=2), (1, 3), "You need Mining level 2"),
+            (_fish(required_level=2), (4, 4), "You need Fishing level 2"),
+        ]:
+            system, inventory, skills, grid, _ = _system([node])
+
+            result = system.start_gather(node.node_id, start_tile, grid, system.blocking_tiles())
+
+            self.assertFalse(result.success)
+            self.assertEqual(result.feedback, feedback)
+            self.assertEqual(inventory.to_dict(), {})
+            self.assertEqual(skills.xp(node.skill_id), 0)
 
     def test_depleted_node_cannot_be_gathered_until_respawn(self) -> None:
-        clock = FakeClock()
-        system, inventory, skills, grid = _system([_tree(respawn_seconds=10)], clock=clock)
+        system, inventory, skills, grid, clock = _system([_tree(respawn_seconds=10)])
 
-        self.assertTrue(system.gather("tree_01", (1, 2), grid, system.blocking_tiles()).success)
-        self.assertFalse(system.gather("tree_01", (1, 2), grid, system.blocking_tiles()).success)
+        self._start_and_finish(system, "tree_01", (1, 2), grid, clock)
+        self.assertFalse(system.start_gather("tree_01", (1, 2), grid, system.blocking_tiles()).success)
 
-        clock.now = 109.0
-        self.assertFalse(system.gather("tree_01", (1, 2), grid, system.blocking_tiles()).success)
+        clock.now = 111.0
+        self.assertFalse(system.start_gather("tree_01", (1, 2), grid, system.blocking_tiles()).success)
 
-        clock.now = 110.0
-        self.assertTrue(system.gather("tree_01", (1, 2), grid, system.blocking_tiles()).success)
+        clock.now = 112.0
+        self._start_and_finish(system, "tree_01", (1, 2), grid, clock)
         self.assertEqual(inventory.count("logs"), 2)
         self.assertEqual(skills.xp("woodcutting"), 50)
 
     def test_all_three_skills_use_same_gathering_system(self) -> None:
         nodes = [_tree(), _rock(), _fish()]
-        system, inventory, skills, grid = _system(nodes)
+        system, inventory, skills, grid, clock = _system(nodes)
 
-        results = [
-            system.gather("tree_01", (1, 2), grid, system.blocking_tiles()),
-            system.gather("copper_rock_01", (1, 3), grid, system.blocking_tiles()),
-            system.gather("fishing_spot_01", (4, 4), grid, system.blocking_tiles()),
-        ]
+        self._start_and_finish(system, "tree_01", (1, 2), grid, clock)
+        self._start_and_finish(system, "copper_rock_01", (1, 3), grid, clock)
+        self._start_and_finish(system, "shrimp_spot_01", (4, 4), grid, clock)
 
-        self.assertTrue(all(result.success for result in results))
         self.assertIsInstance(system, GatheringSystem)
         self.assertEqual(inventory.count("logs"), 1)
         self.assertEqual(inventory.count("copper_ore"), 1)
-        self.assertEqual(inventory.count("raw_fish"), 1)
+        self.assertEqual(inventory.count("raw_shrimp"), 1)
         self.assertEqual(skills.xp("woodcutting"), 25)
         self.assertEqual(skills.xp("mining"), 20)
         self.assertEqual(skills.xp("fishing"), 15)
 
-    def test_gathering_walks_to_reachable_adjacent_tile(self) -> None:
-        system, _, _, grid = _system([_tree()])
+    def test_gathering_walks_to_reachable_adjacent_tile_before_starting(self) -> None:
+        system, inventory, _, grid, _ = _system([_tree()])
 
-        result = system.gather("tree_01", (0, 0), grid, system.blocking_tiles())
+        result = system.start_gather("tree_01", (0, 0), grid, system.blocking_tiles())
 
         self.assertTrue(result.success)
-        self.assertIn(result.new_player_tile, {(1, 2), (2, 1), (2, 3), (3, 2)})
+        self.assertFalse(result.pending)
+        self.assertEqual(result.new_player_tile, (1, 1))
+        self.assertEqual(inventory.count("logs"), 0)
+
+    def test_higher_level_reduces_gather_duration(self) -> None:
+        system, _, skills, _, _ = _system([_tree()])
+        node = system.nodes["tree_01"]
+
+        level_one_duration = system.gather_duration(node)
+        skills.add_xp("woodcutting", 250)
+        level_three_duration = system.gather_duration(node)
+
+        self.assertEqual(level_one_duration, 2.0)
+        self.assertEqual(level_three_duration, 1.6)
+
+    def test_pending_gathering_can_be_cancelled(self) -> None:
+        system, inventory, _, grid, clock = _system([_tree()])
+
+        system.start_gather("tree_01", (1, 2), grid, system.blocking_tiles())
+        self.assertTrue(system.cancel_pending())
+        clock.now += 2.0
+
+        self.assertIsNone(system.update())
+        self.assertEqual(inventory.count("logs"), 0)
 
     def test_save_load_preserves_inventory_skills_and_depleted_nodes(self) -> None:
-        clock = FakeClock()
-        system, inventory, skills, grid = _system([_tree(respawn_seconds=30)], clock=clock)
-        system.gather("tree_01", (1, 2), grid, system.blocking_tiles())
+        system, inventory, skills, grid, clock = _system([_tree(respawn_seconds=30)])
+        self._start_and_finish(system, "tree_01", (1, 2), grid, clock)
         state = {
             "inventory": inventory.to_dict(),
             "skills": skills.to_dict(),
@@ -128,30 +169,49 @@ class GatheringTests(unittest.TestCase):
         self.assertEqual(loaded_skills.xp("woodcutting"), 25)
         self.assertTrue(loaded_system.is_depleted("tree_01"))
 
+    def _start_and_finish(
+        self,
+        system: GatheringSystem,
+        node_id: str,
+        player_tile: tuple[int, int],
+        grid: TileGrid,
+        clock: FakeClock,
+    ) -> None:
+        started = system.start_gather(node_id, player_tile, grid, system.blocking_tiles())
+        self.assertTrue(started.success)
+        self.assertTrue(started.pending)
+        clock.now += started.duration
+        completed = system.update()
+        assert completed is not None
+        self.assertTrue(completed.success)
+
 
 def _system(
     nodes: list[ResourceNode],
     *,
     clock: FakeClock | None = None,
-) -> tuple[GatheringSystem, Inventory, Skills, TileGrid]:
+) -> tuple[GatheringSystem, Inventory, Skills, TileGrid, FakeClock]:
     inventory = Inventory()
     skills = Skills(SKILLS)
     grid = TileGrid(6, 6)
-    system = GatheringSystem(nodes, inventory, skills, time_provider=clock or FakeClock())
-    return system, inventory, skills, grid
+    clock = clock or FakeClock()
+    system = GatheringSystem(nodes, inventory, skills, time_provider=clock)
+    return system, inventory, skills, grid, clock
 
 
-def _tree(respawn_seconds: float = 30) -> ResourceNode:
+def _tree(required_level: int = 1, respawn_seconds: float = 30) -> ResourceNode:
     return ResourceNode(
         node_id="tree_01",
         node_type="tree",
+        display_name="Tree",
         skill_id="woodcutting",
-        required_level=1,
+        required_level=required_level,
         xp_reward=25,
         item_reward="logs",
         quantity_reward=1,
         depleted_state="stump",
         respawn_seconds=respawn_seconds,
+        base_gather_seconds=2.0,
         blocks_movement=True,
         position=(2, 2),
     )
@@ -161,6 +221,7 @@ def _rock(required_level: int = 1) -> ResourceNode:
     return ResourceNode(
         node_id="copper_rock_01",
         node_type="copper_rock",
+        display_name="Copper rock",
         skill_id="mining",
         required_level=required_level,
         xp_reward=20,
@@ -168,22 +229,25 @@ def _rock(required_level: int = 1) -> ResourceNode:
         quantity_reward=1,
         depleted_state="depleted_rock",
         respawn_seconds=30,
+        base_gather_seconds=2.2,
         blocks_movement=True,
         position=(2, 3),
     )
 
 
-def _fish() -> ResourceNode:
+def _fish(required_level: int = 1) -> ResourceNode:
     return ResourceNode(
-        node_id="fishing_spot_01",
-        node_type="fishing_spot",
+        node_id="shrimp_spot_01",
+        node_type="shrimp_spot",
+        display_name="Raw shrimp",
         skill_id="fishing",
-        required_level=1,
+        required_level=required_level,
         xp_reward=15,
-        item_reward="raw_fish",
+        item_reward="raw_shrimp",
         quantity_reward=1,
         depleted_state="quiet_water",
         respawn_seconds=30,
+        base_gather_seconds=1.8,
         blocks_movement=False,
         position=(4, 4),
     )

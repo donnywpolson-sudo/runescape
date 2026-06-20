@@ -49,6 +49,7 @@ def validate_items(items: dict[str, Any]) -> list[ValidationIssue]:
     if not isinstance(items, dict) or not items:
         return [ValidationIssue("items.json", "must contain at least one item")]
 
+    valid_categories = {"wood", "fish", "ore"}
     for item_id, definition in items.items():
         source = f"items.json:{item_id}"
         if not isinstance(item_id, str) or not item_id:
@@ -61,6 +62,9 @@ def validate_items(items: dict[str, Any]) -> list[ValidationIssue]:
         sell_price = definition.get("sell_price", 0)
         if not isinstance(sell_price, int) or sell_price < 0:
             issues.append(ValidationIssue(source, "'sell_price' must be a non-negative integer"))
+        category = definition.get("category")
+        if category not in valid_categories:
+            issues.append(ValidationIssue(source, "'category' must be one of: fish, ore, wood"))
     return issues
 
 
@@ -126,6 +130,7 @@ def validate_world(
         return issues
 
     blocked_tiles = _tile_set(world.get("blocked_tiles", []), "world.json:blocked_tiles", width, height, issues)
+    water_tiles = _tile_set(world.get("water_tiles", []), "world.json:water_tiles", width, height, issues)
     player_start = _tile(world.get("player_start"), "world.json:player_start", width, height, issues)
     if player_start is not None and player_start in blocked_tiles:
         issues.append(ValidationIssue("world.json:player_start", "player spawn cannot be blocked"))
@@ -147,7 +152,9 @@ def validate_world(
         "position",
         "blocks_movement",
         "depleted_state",
+        "base_gather_seconds",
     }
+    resource_positions: set[tuple[int, int]] = set()
     for index, node in enumerate(resource_nodes):
         source = f"world.json:resource_nodes[{index}]"
         if not isinstance(node, dict):
@@ -175,15 +182,68 @@ def validate_world(
             issues.append(ValidationIssue(source, "'blocks_movement' must be a boolean"))
         if not isinstance(node.get("depleted_state"), str) or not node.get("depleted_state"):
             issues.append(ValidationIssue(source, "'depleted_state' must be a non-empty string"))
+        display_name = node.get("display_name")
+        if display_name is not None and (not isinstance(display_name, str) or not display_name):
+            issues.append(ValidationIssue(source, "'display_name' must be a non-empty string"))
         respawn_seconds = node.get("respawn_seconds")
         if respawn_seconds is not None and (
             not isinstance(respawn_seconds, (int, float)) or respawn_seconds < 0
         ):
             issues.append(ValidationIssue(source, "'respawn_seconds' must be a non-negative number"))
+        base_gather_seconds = node.get("base_gather_seconds")
+        if not isinstance(base_gather_seconds, (int, float)) or base_gather_seconds <= 0:
+            issues.append(ValidationIssue(source, "'base_gather_seconds' must be a positive number"))
         position = _tile(node.get("position"), f"{source}.position", width, height, issues)
         if position is not None and player_start == position and node.get("blocks_movement"):
             issues.append(ValidationIssue(source, "blocking resource cannot overlap player spawn"))
+        if position is not None:
+            resource_positions.add(position)
+
+    _validate_optional_world_object(
+        world,
+        "bank",
+        width,
+        height,
+        blocked_tiles | water_tiles,
+        player_start,
+        resource_positions,
+        issues,
+    )
     return issues
+
+
+def _validate_optional_world_object(
+    world: dict[str, Any],
+    key: str,
+    width: int,
+    height: int,
+    blocked_tiles: set[tuple[int, int]],
+    player_start: tuple[int, int] | None,
+    resource_positions: set[tuple[int, int]],
+    issues: list[ValidationIssue],
+) -> None:
+    raw_object = world.get(key)
+    if raw_object is None:
+        return
+
+    source = f"world.json:{key}"
+    if not isinstance(raw_object, dict):
+        issues.append(ValidationIssue(source, "must be an object"))
+        return
+
+    object_id = raw_object.get("id")
+    if not isinstance(object_id, str) or not object_id:
+        issues.append(ValidationIssue(source, "missing required string 'id'"))
+
+    tile = _tile(raw_object.get("tile"), f"{source}.tile", width, height, issues)
+    if tile is None:
+        return
+    if tile in blocked_tiles:
+        issues.append(ValidationIssue(source, "tile cannot overlap blocked or water tile"))
+    if tile == player_start:
+        issues.append(ValidationIssue(source, "tile cannot overlap player spawn"))
+    if tile in resource_positions:
+        issues.append(ValidationIssue(source, "tile cannot overlap a resource node"))
 
 
 def _load_json(path: Path) -> dict[str, Any]:

@@ -34,7 +34,7 @@ python -m game.tools.validate_data
 - `Q` / `E`: rotate camera
 - Mouse wheel: zoom camera
 - Left click ground: move player to a tile
-- Right click resource/shop: interact
+- Right click resource/shop/bank: interact
 - `F5`: save the currently logged-in account
 - `F9`: load the currently logged-in account
 - `Esc`: quit
@@ -60,7 +60,8 @@ automatically when needed.
 - Left-click movement with grid A* pathfinding and no-path feedback.
 - Right-click interactions that walk adjacent before gathering or selling.
 - Shared gathering system for Woodcutting, Mining, and Fishing with JSON-defined XP, level requirements, item rewards, depletion, and respawn state.
-- Inventory with logs, copper ore, raw fish, coin balance, simple day/time clock, HUD text, and per-account save/load.
+- Data-driven inventory display, bottom-right skills panel, coin balance, simple day/time clock, HUD text, and per-account save/load.
+- Bank booth with an in-game bank panel for depositing and withdrawing inventory stacks.
 - Data validation for `items.json`, `skills.json`, and `world.json`.
 
 ## Next Recommended Systems

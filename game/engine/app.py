@@ -18,6 +18,7 @@ from game.engine.picking import ground_tile_from_mouse, object_from_mouse
 from game.engine import save
 from game.engine.validation import validate_data_dir
 from game.entities.player import Player
+from game.systems.bank import Bank
 from game.systems.gathering import GatheringSystem, ResourceNodeState
 from game.systems.inventory import Inventory
 from game.systems.interaction import InteractionManager
@@ -71,6 +72,7 @@ class GameApp(ShowBase):
         self.world_map.render(self.render)
 
         self.inventory = Inventory()
+        self.bank = Bank()
         self.skills = Skills(self.skills_data)
         self.gathering = GatheringSystem(self.world_map.resource_nodes, self.inventory, self.skills)
         self.shop = Shop(self.items_data)
@@ -92,7 +94,14 @@ class GameApp(ShowBase):
         )
         self.game_camera.apply()
 
-        self.hud = Hud()
+        self.hud = Hud(
+            self.items_data,
+            self.skills_data,
+            on_bank_close=self.close_bank,
+            on_deposit_item=self.deposit_bank_item,
+            on_withdraw_item=self.withdraw_bank_item,
+            on_deposit_all=self.deposit_all_bank,
+        )
         self.selected_text = "Selected: none"
         self.interactions = InteractionManager(
             self.world_map,
@@ -103,6 +112,7 @@ class GameApp(ShowBase):
             self._add_coins,
             self.set_feedback,
             self.gathering,
+            open_bank=self.open_bank,
         )
 
         self.input = InputManager(self)
@@ -187,6 +197,7 @@ class GameApp(ShowBase):
             "username": self.current_username,
             "player": self.player.to_dict(),
             "inventory": self.inventory.to_dict(),
+            "bank": self.bank.to_dict(),
             "coins": self.coins,
             "skills": self.skills.to_dict(),
             "chopped_trees": chopped_trees,
@@ -205,6 +216,7 @@ class GameApp(ShowBase):
         world_state = state.get("world", {})
         self.player.load_dict(state.get("player", {}))
         self.inventory = Inventory.from_dict(state.get("inventory", {}))
+        self.bank = Bank.from_dict(state.get("bank", {}))
         self.skills.load_dict(state.get("skills", {}))
         self.coins = int(state.get("coins", self.coins))
         self.game_time.load_dict(state.get("time", world_state))
@@ -218,27 +230,56 @@ class GameApp(ShowBase):
         self.interactions.skills = self.skills
         self.interactions.gathering = self.gathering
 
+    def open_bank(self) -> None:
+        self.hud.open_bank()
+        self._update_hud()
+        self.set_feedback("Bank opened")
+
+    def close_bank(self) -> None:
+        self.hud.close_bank()
+
+    def deposit_bank_item(self, item_id: str) -> None:
+        deposited = self.bank.deposit(self.inventory, item_id)
+        if deposited:
+            self.set_feedback(f"Deposited {deposited} {self._item_name(item_id)}")
+        else:
+            self.set_feedback(f"No {self._item_name(item_id)} to deposit")
+        self._update_hud()
+
+    def withdraw_bank_item(self, item_id: str) -> None:
+        withdrawn = self.bank.withdraw(self.inventory, item_id)
+        if withdrawn:
+            self.set_feedback(f"Withdrew {withdrawn} {self._item_name(item_id)}")
+        else:
+            self.set_feedback(f"No {self._item_name(item_id)} in bank")
+        self._update_hud()
+
+    def deposit_all_bank(self) -> None:
+        deposited = self.bank.deposit_all(self.inventory)
+        total = sum(deposited.values())
+        if total:
+            self.set_feedback(f"Deposited {total} items")
+        else:
+            self.set_feedback("No items to deposit")
+        self._update_hud()
+
     def _update_hud(self) -> None:
-        woodcutting = self.skills.get("woodcutting")
-        mining = self.skills.get("mining")
-        fishing = self.skills.get("fishing")
         self.hud.update(
-            [
-                f"Account: {self.current_username}",
-                self.game_time.display(),
-                f"Coins: {self.coins}",
-                f"Logs: {self.inventory.count('logs')}",
-                f"Copper ore: {self.inventory.count('copper_ore')}",
-                f"Raw fish: {self.inventory.count('raw_fish')}",
-                f"Woodcutting: level {woodcutting.level} ({woodcutting.xp} XP)",
-                f"Mining: level {mining.level} ({mining.xp} XP)",
-                f"Fishing: level {fishing.level} ({fishing.xp} XP)",
-                self.selected_text,
-            ]
+            account=self.current_username or "",
+            time_text=self.game_time.display(),
+            coins=self.coins,
+            selected_text=self.selected_text,
+            inventory=self.inventory.to_dict(),
+            bank=self.bank.to_dict(),
+            skills=self.skills,
         )
 
     def _add_coins(self, amount: int) -> None:
         self.coins += amount
+
+    def _item_name(self, item_id: str) -> str:
+        definition = self.items_data.get(item_id, {})
+        return str(definition.get("name") or item_id.replace("_", " "))
 
     def _depleted_resources_from_save(
         self,

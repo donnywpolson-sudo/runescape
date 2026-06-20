@@ -24,13 +24,17 @@ class ResourceNode:
     respawn_seconds: float
     blocks_movement: bool
     position: Tile
+    display_name: str = ""
+    base_gather_seconds: float = 0.0
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ResourceNode":
         position = data["position"]
+        node_type = str(data["node_type"])
         return cls(
             node_id=str(data["node_id"]),
-            node_type=str(data["node_type"]),
+            node_type=node_type,
+            display_name=str(data.get("display_name") or node_type.replace("_", " ").title()),
             skill_id=str(data["skill_id"]),
             required_level=int(data["required_level"]),
             xp_reward=int(data["xp_reward"]),
@@ -38,6 +42,7 @@ class ResourceNode:
             quantity_reward=int(data["quantity_reward"]),
             depleted_state=str(data["depleted_state"]),
             respawn_seconds=float(data["respawn_seconds"]),
+            base_gather_seconds=float(data.get("base_gather_seconds", 0.0)),
             blocks_movement=bool(data["blocks_movement"]),
             position=(int(position[0]), int(position[1])),
         )
@@ -46,6 +51,7 @@ class ResourceNode:
         return {
             "node_id": self.node_id,
             "node_type": self.node_type,
+            "display_name": self.display_name,
             "skill_id": self.skill_id,
             "required_level": self.required_level,
             "xp_reward": self.xp_reward,
@@ -53,6 +59,7 @@ class ResourceNode:
             "quantity_reward": self.quantity_reward,
             "depleted_state": self.depleted_state,
             "respawn_seconds": self.respawn_seconds,
+            "base_gather_seconds": self.base_gather_seconds,
             "blocks_movement": self.blocks_movement,
             "position": list(self.position),
         }
@@ -85,6 +92,15 @@ class GatheringResult:
     quantity: int = 0
     xp: int = 0
     new_player_tile: Tile | None = None
+    pending: bool = False
+    duration: float = 0.0
+
+
+@dataclass(frozen=True)
+class PendingGather:
+    node_id: str
+    complete_at: float
+    duration: float
 
 
 class GatheringSystem:
@@ -102,8 +118,26 @@ class GatheringSystem:
         self.skills = skills
         self.time_provider = time_provider
         self.states: dict[str, ResourceNodeState] = states or {}
+        self.pending: PendingGather | None = None
 
     def gather(
+        self,
+        node_id: str,
+        player_tile: Tile,
+        grid: TileGrid,
+        blocked_tiles: Iterable[Tile],
+        *,
+        allow_movement: bool = True,
+    ) -> GatheringResult:
+        return self.start_gather(
+            node_id,
+            player_tile,
+            grid,
+            blocked_tiles,
+            allow_movement=allow_movement,
+        )
+
+    def start_gather(
         self,
         node_id: str,
         player_tile: Tile,
@@ -115,6 +149,19 @@ class GatheringSystem:
         node = self.nodes.get(node_id)
         if node is None:
             return GatheringResult(False, "No object selected")
+
+        if self.pending is not None:
+            if self.pending.node_id == node_id:
+                return GatheringResult(
+                    True,
+                    _pending_feedback(node, self.remaining_seconds()),
+                    node_id=node.node_id,
+                    skill_id=node.skill_id,
+                    item_id=node.item_reward,
+                    pending=True,
+                    duration=self.pending.duration,
+                )
+            self.cancel_pending()
 
         if self.is_depleted(node.node_id):
             return GatheringResult(False, f"{_node_label(node)} is depleted", node_id=node.node_id)
@@ -139,6 +186,45 @@ class GatheringSystem:
                 new_player_tile=destination if destination != player_tile else None,
             )
 
+        if destination != player_tile:
+            return GatheringResult(
+                True,
+                f"Walking to {_node_label(node)}",
+                node_id=node.node_id,
+                skill_id=node.skill_id,
+                item_id=node.item_reward,
+                new_player_tile=destination,
+            )
+
+        duration = self.gather_duration(node)
+        self.pending = PendingGather(
+            node_id=node.node_id,
+            complete_at=self.time_provider() + duration,
+            duration=duration,
+        )
+
+        return GatheringResult(
+            True,
+            _start_feedback(node, duration),
+            node_id=node.node_id,
+            skill_id=node.skill_id,
+            item_id=node.item_reward,
+            pending=True,
+            duration=duration,
+        )
+
+    def update(self) -> GatheringResult | None:
+        if self.pending is None or self.time_provider() < self.pending.complete_at:
+            return None
+
+        pending = self.pending
+        self.pending = None
+        node = self.nodes.get(pending.node_id)
+        if node is None:
+            return GatheringResult(False, "No object selected")
+        if self.is_depleted(node.node_id):
+            return GatheringResult(False, f"{_node_label(node)} is depleted", node_id=node.node_id)
+
         self.inventory.add(node.item_reward, node.quantity_reward)
         self.skills.add_xp(node.skill_id, node.xp_reward)
         self._deplete(node)
@@ -151,8 +237,24 @@ class GatheringSystem:
             item_id=node.item_reward,
             quantity=node.quantity_reward,
             xp=node.xp_reward,
-            new_player_tile=destination if destination != player_tile else None,
         )
+
+    def cancel_pending(self) -> bool:
+        if self.pending is None:
+            return False
+        self.pending = None
+        return True
+
+    def remaining_seconds(self) -> float:
+        if self.pending is None:
+            return 0.0
+        return max(0.0, self.pending.complete_at - self.time_provider())
+
+    def gather_duration(self, node: ResourceNode) -> float:
+        current_level = _skill_level(self.skills, node.skill_id)
+        level_advantage = max(0, current_level - node.required_level)
+        speed_bonus = min(0.50, 0.10 * level_advantage)
+        return max(0.75, node.base_gather_seconds * (1.0 - speed_bonus))
 
     def is_depleted(self, node_id: str) -> bool:
         self._refresh_node(node_id)
@@ -178,6 +280,7 @@ class GatheringSystem:
         }
 
     def load_dict(self, data: dict[str, Any]) -> None:
+        self.cancel_pending()
         self.states.clear()
         for node_id, raw_state in data.items():
             if node_id not in self.nodes or not isinstance(raw_state, dict):
@@ -186,6 +289,8 @@ class GatheringSystem:
         self.refresh_all()
 
     def reset_node(self, node_id: str) -> None:
+        if self.pending is not None and self.pending.node_id == node_id:
+            self.cancel_pending()
         self.states.pop(node_id, None)
 
     def _deplete(self, node: ResourceNode) -> None:
@@ -238,9 +343,8 @@ class GatheringSystem:
         if not node.blocks_movement and grid.in_bounds(node.position) and node.position not in blocked_tiles:
             tiles.append(node.position)
 
-        x, y = node.position
-        for tile in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
-            if grid.in_bounds(tile) and tile not in blocked_tiles:
+        for tile in grid.neighbors(node.position, diagonals=True):
+            if tile not in blocked_tiles:
                 tiles.append(tile)
         return tiles
 
@@ -268,6 +372,8 @@ def _item_name(item_id: str) -> str:
 
 
 def _node_label(node: ResourceNode) -> str:
+    if node.display_name:
+        return node.display_name
     labels = {
         "tree": "Tree",
         "copper_rock": "Copper rock",
@@ -276,12 +382,30 @@ def _node_label(node: ResourceNode) -> str:
     return labels.get(node.node_type, node.node_type.replace("_", " ").title())
 
 
+def _start_feedback(node: ResourceNode, duration: float) -> str:
+    verb = {
+        "woodcutting": "Chopping",
+        "fishing": "Fishing",
+        "mining": "Mining",
+    }.get(node.skill_id, "Gathering")
+    return f"{verb} {_node_label(node)}... {duration:.1f}s"
+
+
+def _pending_feedback(node: ResourceNode, remaining_seconds: float) -> str:
+    verb = {
+        "woodcutting": "Chopping",
+        "fishing": "Fishing",
+        "mining": "Mining",
+    }.get(node.skill_id, "Gathering")
+    return f"{verb} {_node_label(node)}... {remaining_seconds:.1f}s"
+
+
 def _success_feedback(node: ResourceNode, skills: Any) -> str:
     prefix = {
-        "tree": "Chopped tree",
-        "copper_rock": "Mined copper",
-        "fishing_spot": "Caught fish",
-    }.get(node.node_type, f"Gathered {_node_label(node).lower()}")
+        "woodcutting": f"Chopped {_node_label(node)}",
+        "mining": f"Mined {_node_label(node)}",
+        "fishing": f"Caught {_item_name(node.item_reward)}",
+    }.get(node.skill_id, f"Gathered {_node_label(node).lower()}")
     return (
         f"{prefix}: +{node.quantity_reward} {_item_name(node.item_reward)}, "
         f"+{node.xp_reward} {_skill_name(skills, node.skill_id)} XP"

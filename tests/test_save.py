@@ -86,6 +86,11 @@ class SaveTests(unittest.TestCase):
 
             self.assertEqual(load_game("alice", save_dir), state)
 
+    def test_default_save_includes_empty_bank(self) -> None:
+        state = create_default_save("alice")
+
+        self.assertEqual(state["bank"], {})
+
     def test_two_users_do_not_overwrite_each_other(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             save_dir = Path(directory) / "saves"
