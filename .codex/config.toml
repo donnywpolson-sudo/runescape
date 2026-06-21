@@ -1,0 +1,4 @@
+#:schema https://developers.openai.com/codex/config-schema.json
+
+# Hearthvale uses GPT-5.4-Mini to conserve weekly usage.
+model = "gpt-5.4-mini"
