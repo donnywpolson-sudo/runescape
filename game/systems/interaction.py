@@ -8,7 +8,7 @@ from game import settings
 from game.entities.player import Player
 from game.systems.combat import CombatSystem
 from game.systems.cooking import CookingSystem
-from game.systems.gathering import GatheringSystem
+from game.systems.gathering import GatheringSystem, REQUIRED_TOOLS
 from game.systems.inventory import Inventory
 from game.systems.shop import Shop
 from game.systems.smithing import SmithingRecipe, SmithingSystem
@@ -393,7 +393,12 @@ class InteractionManager:
             self._start_action_animation("gathering", obj, result.skill_id)
         else:
             self._stop_action_animation()
-        self.feedback(result.feedback)
+        feedback = result.feedback
+        if result.pending:
+            node = self.world_map.resource_node_for_object(obj)
+            if node is not None and node.skill_id == "fishing":
+                feedback = f"{feedback}; {self._resource_detail_text(node, catch_label='catches')}"
+        self.feedback(feedback)
 
     def _perform_cooking(self, obj: WorldObject) -> None:
         if self.cooking is None:
@@ -473,6 +478,9 @@ class InteractionManager:
         self.feedback(result.feedback)
 
     def _perform_ground_item(self, obj: WorldObject) -> None:
+        if not self.inventory.can_add(obj.item_id, obj.quantity, item_definitions=self.shop.item_definitions):
+            self.feedback("Inventory is full")
+            return
         picked_up = self.world_map.pickup_ground_item(obj.object_id)
         if picked_up is None:
             self.feedback("Nothing to pick up")
@@ -735,6 +743,21 @@ class InteractionManager:
             return f"{obj.display_name}: level {obj.level}, {obj.hitpoints} HP"
         if obj.kind == "ground_item":
             return f"{obj.quantity} {self._item_name(obj.item_id)} on the ground"
+        if self._is_gatherable(obj):
+            node = self.world_map.resource_node_for_object(obj)
+            if node is not None:
+                return f"{obj.display_name or obj.kind.replace('_', ' ').title()}: {self._resource_detail_text(node)}"
         if obj.scenery:
             return obj.display_name or obj.kind.replace("_", " ").title()
         return obj.display_name or obj.kind.replace("_", " ").title()
+
+    def _resource_detail_text(self, node: object, *, catch_label: str = "yields") -> str:
+        skill_id = str(getattr(node, "skill_id", ""))
+        skill_name = self.skills.display_name(skill_id) if hasattr(self.skills, "display_name") else skill_id.replace("_", " ").title()
+        required_level = int(getattr(node, "required_level", 1))
+        item_id = str(getattr(node, "item_reward", ""))
+        tool_id, tool_name = REQUIRED_TOOLS.get(skill_id, ("", ""))
+        requirement = f"requires {skill_name} level {required_level}"
+        if tool_id:
+            requirement = f"{requirement} and {tool_name}"
+        return f"{requirement}; {catch_label} {self._item_name(item_id)}"

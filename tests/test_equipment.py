@@ -42,6 +42,19 @@ def test_equipping_replaces_and_unequips_items() -> None:
     assert inventory.to_dict() == {"bronze_sword": 1, "iron_sword": 1}
 
 
+def test_unequip_requires_open_inventory_slot_for_non_stackable_item() -> None:
+    inventory = Inventory({"iron_sword": 28})
+    skills = Skills(_skills())
+    equipment = Equipment(_items(), inventory, skills, {"weapon": "bronze_sword"})
+
+    result = equipment.unequip("weapon")
+
+    assert not result.success
+    assert result.feedback == "Inventory is full"
+    assert equipment.to_dict() == {"weapon": "bronze_sword"}
+    assert inventory.to_dict() == {"iron_sword": 28}
+
+
 def _skills() -> dict[str, dict[str, object]]:
     thresholds = skill_xp_thresholds()
     return {
@@ -64,6 +77,7 @@ def _items() -> dict[str, dict[str, object]]:
             "name": "Bronze sword",
             "category": "weapon",
             "sell_price": 12,
+            "stackable": False,
             "equip_slot": "weapon",
             "required_skills": {"attack": 1},
         },
@@ -71,6 +85,7 @@ def _items() -> dict[str, dict[str, object]]:
             "name": "Iron sword",
             "category": "weapon",
             "sell_price": 35,
+            "stackable": False,
             "equip_slot": "weapon",
             "required_skills": {"attack": 15},
         },

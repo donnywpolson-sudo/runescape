@@ -81,6 +81,7 @@ def test_context_action_generation_covers_interactable_types() -> None:
             "resource_nodes": [_tree().to_dict()],
             "furnace": {"id": "furnace_01", "tile": [3, 1]},
             "anvil": {"id": "anvil_01", "tile": [4, 1]},
+            "combat_dummy": {"id": "combat_dummy_01", "name": "Training dummy", "tile": [5, 1]},
             "npcs": [{"id": "guide_01", "name": "Village Guide", "tile": [1, 3], "quest_id": "starter_path"}],
             "mobs": [_mob_data()],
         }
@@ -97,6 +98,7 @@ def test_context_action_generation_covers_interactable_types() -> None:
         lambda message: None,
         gathering=GatheringSystem([_tree()], inventory, skills),
         combat=CombatSystem(world.mob_definitions),
+        train_combat=lambda: None,
     )
 
     assert _action_ids(manager, "tree_01") == ["gather", "examine", "cancel"]
@@ -105,6 +107,85 @@ def test_context_action_generation_covers_interactable_types() -> None:
     assert _action_ids(manager, "anvil_01") == ["smith", "examine", "cancel"]
     assert _action_ids(manager, "guide_01") == ["talk", "examine", "cancel"]
     assert _action_ids(manager, "mob_01") == ["attack", "examine", "cancel"]
+    assert _action_ids(manager, "combat_dummy_01") == ["train", "examine", "cancel"]
+
+
+def test_fishing_spot_actions_and_feedback_show_requirements_and_catch() -> None:
+    world = WorldMap(
+        {
+            "width": 4,
+            "height": 4,
+            "blocked_tiles": [],
+            "water_tiles": [[1, 1]],
+            "resource_nodes": [
+                {
+                    "node_id": "shrimp_spot_01",
+                    "node_type": "shrimp_spot",
+                    "display_name": "Fishing spot",
+                    "skill_id": "fishing",
+                    "required_level": 1,
+                    "xp_reward": 15,
+                    "item_reward": "raw_shrimp",
+                    "quantity_reward": 1,
+                    "depleted_state": "quiet_water",
+                    "respawn_seconds": 15,
+                    "base_gather_seconds": 1.8,
+                    "blocks_movement": False,
+                    "position": [1, 1],
+                }
+            ],
+        }
+    )
+    inventory = Inventory({"fishing_rod": 1})
+    skills = Skills(_skills())
+    feedback: list[str] = []
+    gathering = GatheringSystem(world.resource_nodes, inventory, skills, time_provider=lambda: 100.0, item_definitions=_items())
+    manager = InteractionManager(
+        world,
+        _Player(tile=(1, 2)),
+        inventory,
+        skills,
+        Shop(_items()),
+        lambda amount: None,
+        feedback.append,
+        gathering=gathering,
+    )
+    spot = world.get_object("shrimp_spot_01")
+
+    assert manager.get_actions(spot)[0].label == "Fish Fishing spot"
+
+    manager.perform_action("examine", spot)
+    manager.interact_with(spot)
+
+    assert feedback[-2] == "Fishing spot: requires Fishing level 1 and fishing rod; yields Raw shrimp"
+    assert feedback[-1] == "Fishing Fishing spot... 1.8s; requires Fishing level 1 and fishing rod; catches Raw shrimp"
+
+
+def test_training_dummy_uses_train_callback() -> None:
+    world = WorldMap(
+        {
+            "width": 4,
+            "height": 4,
+            "blocked_tiles": [],
+            "water_tiles": [],
+            "combat_dummy": {"id": "combat_dummy_01", "name": "Training dummy", "tile": [1, 1]},
+        }
+    )
+    trained: list[bool] = []
+    manager = InteractionManager(
+        world,
+        _Player(tile=(1, 2)),
+        Inventory(),
+        Skills(_skills()),
+        Shop(_items()),
+        lambda amount: None,
+        lambda message: None,
+        train_combat=lambda: trained.append(True),
+    )
+
+    manager.interact_with(world.get_object("combat_dummy_01"))
+
+    assert trained == [True]
 
 
 def test_ground_item_actions_and_default_pickup() -> None:
@@ -138,6 +219,36 @@ def test_ground_item_actions_and_default_pickup() -> None:
     assert inventory.count("coins") == 3
     assert world.get_object(ground_item.object_id) is None
     assert feedback[-1] == "Picked up 3 Coins"
+
+
+def test_ground_item_pickup_is_blocked_when_inventory_is_full() -> None:
+    world = WorldMap(
+        {
+            "width": 4,
+            "height": 4,
+            "blocked_tiles": [],
+            "water_tiles": [],
+            "resource_nodes": [],
+        }
+    )
+    ground_item = world.add_ground_item("raw_shrimp", 1, (1, 1))
+    inventory = Inventory({"logs": 28})
+    feedback: list[str] = []
+    manager = InteractionManager(
+        world,
+        _Player(tile=(1, 1)),
+        inventory,
+        Skills(_skills()),
+        Shop(_items()),
+        lambda amount: None,
+        feedback.append,
+    )
+
+    manager.interact_with(ground_item)
+
+    assert inventory.to_dict() == {"logs": 28}
+    assert world.get_object(ground_item.object_id) is ground_item
+    assert feedback[-1] == "Inventory is full"
 
 
 def test_left_click_ground_item_uses_pickup_interaction(monkeypatch) -> None:
@@ -670,26 +781,39 @@ def _skills() -> dict[str, dict[str, object]]:
             "starting_level": 1,
             "xp_thresholds": skill_xp_thresholds(),
         },
+        "fishing": {
+            "display_name": "Fishing",
+            "starting_level": 1,
+            "xp_thresholds": skill_xp_thresholds(),
+        },
     }
 
 
 def _items() -> dict[str, dict[str, object]]:
     return {
-        "coins": {"name": "Coins", "category": "currency", "sell_price": 0},
-        "logs": {"name": "Logs", "category": "wood", "sell_price": 3},
-        "bronze_bar": {"name": "Bronze bar", "category": "bar", "sell_price": 12},
-        "bronze_sword": {"name": "Bronze sword", "category": "weapon", "sell_price": 24},
-        "bronze_shield": {"name": "Bronze shield", "category": "armor", "sell_price": 30},
+        "coins": {"name": "Coins", "category": "currency", "sell_price": 0, "stackable": True},
+        "logs": {"name": "Logs", "category": "wood", "sell_price": 3, "stackable": False},
+        "bronze_bar": {"name": "Bronze bar", "category": "bar", "sell_price": 12, "stackable": False},
+        "bronze_sword": {"name": "Bronze sword", "category": "weapon", "sell_price": 24, "stackable": False},
+        "bronze_shield": {"name": "Bronze shield", "category": "armor", "sell_price": 30, "stackable": False},
+        "fishing_rod": {
+            "name": "Fishing rod",
+            "category": "tool",
+            "sell_price": 18,
+            "stackable": False,
+            "tool_for": "fishing",
+        },
         "raw_shrimp": {
             "name": "Raw shrimp",
             "category": "fish",
             "sell_price": 4,
+            "stackable": False,
             "cook_result": "cooked_shrimp",
             "cooking_required_level": 1,
             "cooking_xp": 30,
             "base_cook_seconds": 1.8,
         },
-        "cooked_shrimp": {"name": "Cooked shrimp", "category": "fish", "sell_price": 7},
+        "cooked_shrimp": {"name": "Cooked shrimp", "category": "fish", "sell_price": 7, "stackable": False},
     }
 
 

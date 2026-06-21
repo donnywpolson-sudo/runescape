@@ -14,6 +14,8 @@ from game.world.objects import WorldObject, make_box, make_cone, make_cylinder, 
 
 T = TypeVar("T")
 AssetRenderer = Callable[[NodePath, WorldObject, ResourceNode | None, ResourceNodeState, int], None]
+# Optional imported model renderers can be registered per render kind later.
+# Procedural renderers below remain the fallback for every object kind.
 ASSET_RENDERERS: dict[str, AssetRenderer] = {}
 
 
@@ -98,7 +100,7 @@ def render_world_object(
     elif render_kind == "stump":
         _render_stump(holder, obj.object_id, resource_state)
     elif render_kind == "ore_rock":
-        _render_ore_rock(holder, obj.object_id, tier)
+        _render_ore_rock(holder, obj.object_id, tier, resource_node)
     elif render_kind == "depleted_rock":
         _render_depleted_rock(holder, obj.object_id, resource_state)
     elif render_kind == "fishing_spot":
@@ -321,54 +323,6 @@ def _render_grass_tile(holder: NodePath, tile: Tile) -> None:
     base = make_quad("grass_base", settings.TILE_SIZE, _grass_base_color(tile))
     base.reparentTo(holder)
 
-    if _grass_noise(tile, 2) <= 0x37FF:
-        shade = make_box("grass_soft_mottle", (0.38, 0.28, 0.008), C.GRASS_SHADOW_PATCH)
-        shade.reparentTo(holder)
-        shade.setPos(_grass_offset(tile, 4), _grass_offset(tile, 5), 0.005)
-        shade.setH((_grass_noise(tile, 6) % 70) - 35)
-    if _grass_noise(tile, 9) <= 0x1FFF:
-        sun_patch = make_box("grass_sun_patch", (0.20, 0.13, 0.009), C.GRASS_HIGHLIGHT)
-        sun_patch.reparentTo(holder)
-        sun_patch.setPos(_grass_offset(tile, 10), _grass_offset(tile, 11), 0.007)
-        sun_patch.setH((_grass_noise(tile, 12) % 70) - 35)
-    if _grass_noise(tile, 14) <= 0x17FF:
-        dry = make_box("grass_dry_speck", (0.18, 0.055, 0.010), C.GRASS_DRY)
-        dry.reparentTo(holder)
-        dry.setPos(_grass_offset(tile, 15), _grass_offset(tile, 16), 0.008)
-        dry.setH((_grass_noise(tile, 17) % 100) - 50)
-    if _grass_noise(tile, 20) <= 0x23FF:
-        tuft = make_box("grass_tuft", (0.11, 0.035, 0.045), C.GRASS_LIGHT)
-        tuft.reparentTo(holder)
-        tuft.setPos(_grass_offset(tile, 21), _grass_offset(tile, 22), 0.012)
-        tuft.setH((_grass_noise(tile, 23) % 80) - 40)
-    if _grass_noise(tile, 24) <= 0x0FFF:
-        for index in range(2):
-            blade = make_box(f"grass_blade_cluster_{index}", (0.035, 0.14, 0.045), C.GRASS_LIGHT)
-            blade.reparentTo(holder)
-            blade.setPos(_grass_offset(tile, 25 + index * 3), _grass_offset(tile, 26 + index * 3), 0.012)
-            blade.setH((_grass_noise(tile, 27 + index * 3) % 90) - 45)
-    if _grass_noise(tile, 31) <= 0x0FFF:
-        stone = make_box("grass_pebble", (0.11, 0.08, 0.025), C.STONE_DARK)
-        stone.reparentTo(holder)
-        stone.setPos(_grass_offset(tile, 32), _grass_offset(tile, 33), 0.010)
-        stone.setH((_grass_noise(tile, 34) % 60) - 30)
-    if _grass_noise(tile, 35) <= 0x0AFF:
-        flower = make_box("grass_flower", (0.05, 0.05, 0.045), C.FLOWER_YELLOW)
-        flower.reparentTo(holder)
-        flower.setPos(_grass_offset(tile, 36), _grass_offset(tile, 37), 0.014)
-    if _grass_noise(tile, 38) <= 0x07FF:
-        origin_x = _grass_offset(tile, 39)
-        origin_y = _grass_offset(tile, 40)
-        for index, (x, y) in enumerate(((0.20, 0.20), (0.25, 0.24), (0.16, 0.26))):
-            flower = make_box(f"grass_red_flower_{index}", (0.038, 0.038, 0.040), C.FLOWER_RED)
-            flower.reparentTo(holder)
-            flower.setPos(origin_x + x - 0.20, origin_y + y - 0.20, 0.015)
-    if _grass_noise(tile, 45) <= 0x0FFF:
-        leaf = make_box("grass_fallen_leaf", (0.10, 0.045, 0.018), C.DIRT_LIGHT)
-        leaf.reparentTo(holder)
-        leaf.setPos(_grass_offset(tile, 46), _grass_offset(tile, 47), 0.012)
-        leaf.setH((_grass_noise(tile, 48) % 90) - 45)
-
 
 def _render_dirt_tile(holder: NodePath, tile: Tile, edge_dirs: set[str]) -> None:
     base = make_quad("dirt_base", settings.TILE_SIZE, C.SHORE)
@@ -378,18 +332,6 @@ def _render_dirt_tile(holder: NodePath, tile: Tile, edge_dirs: set[str]) -> None
     path.reparentTo(holder)
     path.setPos(0.50, 0.50, 0.0)
 
-    for index, x in enumerate((0.33, 0.67)):
-        if _hash(tile, 8 + index) <= 0x9FFF:
-            rut = make_box(f"dirt_rut_{index}", (0.05, 0.72, 0.020), C.DIRT_RUT)
-            rut.reparentTo(holder)
-            rut.setPos(x, 0.50, 0.010)
-            rut.setH(1.5 if index == 0 else -1.5)
-    if _hash(tile, 6) == 0:
-        worn = make_box("dirt_worn_strip", (0.58, 0.055, 0.022), C.DIRT_LIGHT)
-        worn.reparentTo(holder)
-        worn.setPos(0.48, 0.48, 0.009)
-        worn.setH(34)
-
     for edge in edge_dirs:
         if edge in {"west", "east"}:
             strip = make_box(f"dirt_edge_{edge}", (0.08, 1.0, 0.024), C.DIRT_EDGE)
@@ -398,17 +340,6 @@ def _render_dirt_tile(holder: NodePath, tile: Tile, edge_dirs: set[str]) -> None
             strip = make_box(f"dirt_edge_{edge}", (1.0, 0.08, 0.024), C.DIRT_EDGE)
             strip.setPos(0.50, 0.04 if edge == "south" else 0.96, 0.006)
         strip.reparentTo(holder)
-
-    if _hash(tile, 4) == 0:
-        pebble = make_box("dirt_pebble", (0.10, 0.07, 0.025), C.DIRT_LIGHT)
-        pebble.reparentTo(holder)
-        pebble.setPos(0.34, 0.68, 0.012)
-        pebble.setH(17)
-    if _hash(tile, 14) == 0:
-        flagstone = make_box("dirt_flagstone", (0.22, 0.14, 0.026), C.STONE)
-        flagstone.reparentTo(holder)
-        flagstone.setPos(0.64, 0.26, 0.014)
-        flagstone.setH(-12)
 
 
 def _render_water_tile(holder: NodePath, tile: Tile, edge_dirs: set[str]) -> None:
@@ -473,6 +404,10 @@ def _render_tree(holder: NodePath, name: str, tier: int) -> None:
     bark_mark.reparentTo(holder)
     bark_mark.setPos(0.09, -0.11, 0.32)
     bark_mark.setH(8)
+    knot = make_box(f"{name}_trunk_knot", (0.065, 0.030, 0.060), C.TRUNK_DARK)
+    knot.reparentTo(holder)
+    knot.setPos(-0.07, -0.12, 0.54)
+    knot.setH(-10)
     chop_mark = make_box(f"{name}_chop_mark", (0.11, 0.025, 0.10), C.STUMP_TOP)
     chop_mark.reparentTo(holder)
     chop_mark.setPos(-0.08, -0.13, 0.38)
@@ -501,6 +436,10 @@ def _render_tree(holder: NodePath, name: str, tier: int) -> None:
     middle.reparentTo(holder)
     middle.setZ(0.94)
     middle.setH(-10)
+    shadow_band = make_box(f"{name}_canopy_shadow_band", (0.58, 0.12, 0.045), leaf_dark)
+    shadow_band.reparentTo(holder)
+    shadow_band.setPos(0.0, -0.31, 0.92)
+    shadow_band.setH(-8)
 
     top = make_cone(f"{name}_leaves_top", 0.34, 0.46, 7, leaf_light)
     top.reparentTo(holder)
@@ -535,8 +474,8 @@ def _render_stump(holder: NodePath, name: str, state: ResourceNodeState) -> None
     _respawn_glow(holder, name, state, 0.31)
 
 
-def _render_ore_rock(holder: NodePath, name: str, tier: int) -> None:
-    rock_dark, rock_light, vein_color = _rock_colors(tier)
+def _render_ore_rock(holder: NodePath, name: str, tier: int, resource_node: ResourceNode | None = None) -> None:
+    rock_dark, rock_light, vein_color = _rock_colors(tier, resource_node)
     _shadow(holder, f"{name}_shadow", 0.62, 0.38)
 
     clusters = (
@@ -547,10 +486,12 @@ def _render_ore_rock(holder: NodePath, name: str, tier: int) -> None:
     )
     for suffix, size, pos, heading, color in clusters:
         facet = make_cone(f"{name}_faceted_boulder_{suffix}", max(size[0], size[1]) * 0.62, size[2], 5, color)
+        facet.setTag("resource_color", _color_tag(color))
         facet.reparentTo(holder)
         facet.setPos(*pos)
         facet.setH(heading)
         slab = make_box(f"{name}_stone_slab_{suffix}", size, color)
+        slab.setTag("resource_color", _color_tag(color))
         slab.reparentTo(holder)
         slab.setPos(pos[0], pos[1], max(0.02, pos[2] - 0.04))
         slab.setH(heading + 18)
@@ -566,9 +507,15 @@ def _render_ore_rock(holder: NodePath, name: str, tier: int) -> None:
         vein.reparentTo(holder)
         vein.setPos(*pos)
         vein.setH(heading)
+    crown = make_box(f"{name}_ore_crown", (0.18, 0.12, 0.045), vein_color)
+    crown.setTag("resource_color", _color_tag(vein_color))
+    crown.reparentTo(holder)
+    crown.setPos(-0.04, -0.06, 0.39)
+    crown.setH(-18)
 
     for index, (x, y, h) in enumerate(((-0.32, -0.20, 15), (0.34, -0.16, -28), (0.18, 0.30, 52))):
         rubble = make_box(f"{name}_loose_rubble_{index}", (0.14, 0.10, 0.055), rock_dark if index % 2 else rock_light)
+        rubble.setTag("resource_color", _color_tag(rock_dark if index % 2 else rock_light))
         rubble.reparentTo(holder)
         rubble.setPos(x, y, 0.035)
         rubble.setH(h)
@@ -609,7 +556,7 @@ def _render_depleted_rock(holder: NodePath, name: str, state: ResourceNodeState)
 
 
 def _render_fishing_spot(holder: NodePath, name: str, tier: int) -> None:
-    marker_color, ripple_color = _fishing_colors(tier)
+    _marker_color, ripple_color = _fishing_colors(1)
     outer = make_ground_ring(f"{name}_water_ring_outer", 0.34, ripple_color, thickness=2.0)
     outer.reparentTo(holder)
     outer.setZ(0.034)
@@ -618,15 +565,21 @@ def _render_fishing_spot(holder: NodePath, name: str, tier: int) -> None:
     inner.reparentTo(holder)
     inner.setZ(0.038)
 
-    body = make_box(f"{name}_fish_body", (0.25, 0.11, 0.028), marker_color)
-    body.reparentTo(holder)
-    body.setPos(0.0, 0.0, 0.040)
-    body.setH(18)
-
-    tail = make_box(f"{name}_fish_tail", (0.10, 0.12, 0.024), marker_color)
-    tail.reparentTo(holder)
-    tail.setPos(-0.17, -0.055, 0.042)
-    tail.setH(48)
+    net_hoop = make_ground_ring(f"{name}_net_hoop", 0.16, C.WATER_SHIMMER, thickness=1.4)
+    net_hoop.reparentTo(holder)
+    net_hoop.setPos(-0.04, -0.02, 0.046)
+    net_handle = make_box(f"{name}_net_handle", (0.32, 0.030, 0.018), C.WOOD_LIGHT)
+    net_handle.reparentTo(holder)
+    net_handle.setPos(-0.18, -0.14, 0.050)
+    net_handle.setH(34)
+    net_cross_a = make_box(f"{name}_net_cross_a", (0.18, 0.014, 0.010), C.WATER_SHIMMER)
+    net_cross_a.reparentTo(holder)
+    net_cross_a.setPos(-0.04, -0.02, 0.052)
+    net_cross_a.setH(28)
+    net_cross_b = make_box(f"{name}_net_cross_b", (0.18, 0.014, 0.010), C.WATER_SHIMMER)
+    net_cross_b.reparentTo(holder)
+    net_cross_b.setPos(-0.04, -0.02, 0.053)
+    net_cross_b.setH(-28)
 
     wake = make_box(f"{name}_wake", (0.30, 0.025, 0.012), ripple_color)
     wake.reparentTo(holder)
@@ -651,6 +604,10 @@ def _render_fishing_spot(holder: NodePath, name: str, tier: int) -> None:
     bobber_top = make_box(f"{name}_buoy_top", (0.08, 0.08, 0.025), C.WATER_SHIMMER)
     bobber_top.reparentTo(holder)
     bobber_top.setPos(0.22, -0.14, 0.13)
+    line = make_box(f"{name}_fishing_line", (0.22, 0.012, 0.010), C.WATER_SHIMMER)
+    line.reparentTo(holder)
+    line.setPos(0.06, -0.08, 0.070)
+    line.setH(18)
     for index, x in enumerate((-0.31, -0.25, 0.30)):
         reed = make_box(f"{name}_reed_{index}", (0.025, 0.035, 0.18 + index * 0.025), C.REED)
         reed.reparentTo(holder)
@@ -690,6 +647,10 @@ def _render_shop(holder: NodePath, name: str) -> None:
     canopy_trim = make_box(f"{name}_canopy_trim", (1.10, 0.06, 0.08), C.CLOTH_CREAM)
     canopy_trim.reparentTo(holder)
     canopy_trim.setPos(0.0, -0.48, 0.88)
+    for index, x in enumerate((-0.36, -0.12, 0.12, 0.36)):
+        stripe = make_box(f"{name}_canopy_stripe_{index}", (0.13, 0.46, 0.105), C.CLOTH_CREAM if index % 2 == 0 else C.CLOTH_RED)
+        stripe.reparentTo(holder)
+        stripe.setPos(x, -0.25, 0.925)
     canopy_peak = make_cone(f"{name}_canopy_peak", 0.26, 0.18, 4, C.CLOTH_RED)
     canopy_peak.reparentTo(holder)
     canopy_peak.setPos(0.0, -0.25, 0.98)
@@ -707,6 +668,13 @@ def _render_shop(holder: NodePath, name: str) -> None:
     crate = make_box(f"{name}_display_crate", (0.24, 0.20, 0.16), C.WOOD)
     crate.reparentTo(holder)
     crate.setPos(0.05, 0.18, 0.44)
+    shelf = make_box(f"{name}_display_shelf", (0.78, 0.08, 0.06), C.WOOD_LIGHT)
+    shelf.reparentTo(holder)
+    shelf.setPos(0.0, -0.14, 0.53)
+    for index, x in enumerate((-0.22, -0.04, 0.16)):
+        parcel = make_box(f"{name}_stock_parcel_{index}", (0.12, 0.10, 0.09), C.STUMP_TOP if index != 1 else C.METAL_LIGHT)
+        parcel.reparentTo(holder)
+        parcel.setPos(x, -0.14, 0.59)
     sign = make_box(f"{name}_sign", (0.30, 0.055, 0.16), C.GOLD)
     sign.reparentTo(holder)
     sign.setPos(0.28, -0.48, 0.68)
@@ -749,6 +717,21 @@ def _render_bank(holder: NodePath, name: str) -> None:
     keyhole = make_box(f"{name}_keyhole", (0.035, 0.020, 0.055), C.OUTLINE)
     keyhole.reparentTo(holder)
     keyhole.setPos(0.0, -0.255, 0.47)
+    teller_grill = make_box(f"{name}_teller_grill", (0.66, 0.030, 0.24), C.METAL_DARK)
+    teller_grill.reparentTo(holder)
+    teller_grill.setPos(0.0, -0.34, 0.84)
+    for index, x in enumerate((-0.24, -0.08, 0.08, 0.24)):
+        bar = make_box(f"{name}_teller_bar_{index}", (0.030, 0.040, 0.28), C.METAL_LIGHT)
+        bar.reparentTo(holder)
+        bar.setPos(x, -0.36, 0.81)
+    ledger = make_box(f"{name}_ledger", (0.26, 0.18, 0.035), C.CLOTH_CREAM)
+    ledger.reparentTo(holder)
+    ledger.setPos(-0.28, -0.10, 0.48)
+    ledger.setH(-12)
+    for index in range(3):
+        coin_stack = make_cylinder(f"{name}_coin_stack_{index}", 0.045, 0.030 + index * 0.012, 10, C.GOLD)
+        coin_stack.reparentTo(holder)
+        coin_stack.setPos(0.24 + index * 0.055, -0.11, 0.46)
 
 
 def _render_cooking_range(holder: NodePath, name: str) -> None:
@@ -774,6 +757,10 @@ def _render_cooking_range(holder: NodePath, name: str) -> None:
     top = make_box(f"{name}_top", (0.82, 0.68, 0.08), C.STONE_DARK)
     top.reparentTo(holder)
     top.setPos(0.0, 0.02, 0.42)
+    for index, x in enumerate((-0.30, 0.30)):
+        side_brick = make_box(f"{name}_side_brick_{index}", (0.12, 0.10, 0.09), C.STONE_LIGHT)
+        side_brick.reparentTo(holder)
+        side_brick.setPos(x, -0.22, 0.27)
 
     pot = make_cylinder(f"{name}_pot", 0.22, 0.20, 8, C.OUTLINE)
     pot.reparentTo(holder)
@@ -781,6 +768,14 @@ def _render_cooking_range(holder: NodePath, name: str) -> None:
     lid = make_cone(f"{name}_pot_lid", 0.18, 0.08, 8, C.STONE_DARK)
     lid.reparentTo(holder)
     lid.setPos(0.0, 0.02, 0.70)
+    spoon = make_box(f"{name}_wooden_spoon", (0.34, 0.030, 0.025), C.WOOD_LIGHT)
+    spoon.reparentTo(holder)
+    spoon.setPos(-0.18, 0.17, 0.63)
+    spoon.setH(42)
+    handle = make_cylinder(f"{name}_pan_handle", 0.025, 0.24, 6, C.METAL_DARK)
+    handle.reparentTo(holder)
+    handle.setPos(0.30, 0.03, 0.58)
+    handle.setH(90)
 
     chimney = make_cylinder(f"{name}_chimney", 0.10, 0.72, 7, C.OUTLINE)
     chimney.reparentTo(holder)
@@ -842,6 +837,10 @@ def _render_furnace(holder: NodePath, name: str) -> None:
     band = make_cylinder(f"{name}_iron_band", 0.37, 0.035, 8, C.METAL_DARK)
     band.reparentTo(holder)
     band.setZ(0.46)
+    for index, z in enumerate((0.18, 0.34, 0.64)):
+        rivet = make_cylinder(f"{name}_rivet_ring_{index}", 0.38, 0.018, 8, C.METAL_LIGHT)
+        rivet.reparentTo(holder)
+        rivet.setZ(z)
 
     glow = make_ground_ring(f"{name}_glow", 0.40, C.LAMP, thickness=1.4)
     glow.reparentTo(holder)
@@ -849,6 +848,10 @@ def _render_furnace(holder: NodePath, name: str) -> None:
     vent = make_cone(f"{name}_vent", 0.19, 0.16, 8, C.ASH)
     vent.reparentTo(holder)
     vent.setZ(1.00)
+    ore = make_box(f"{name}_heated_ore", (0.13, 0.10, 0.07), C.COPPER)
+    ore.reparentTo(holder)
+    ore.setPos(-0.18, -0.25, 0.24)
+    ore.setH(24)
     for index, (x, y, z) in enumerate(((-0.06, 0.02, 1.16), (0.05, 0.00, 1.25), (0.0, 0.04, 1.34))):
         smoke = make_cylinder(f"{name}_smoke_{index}", 0.06 + index * 0.018, 0.025, 7, C.SMOKE)
         smoke.reparentTo(holder)
@@ -875,10 +878,21 @@ def _render_anvil(holder: NodePath, name: str) -> None:
     horn.reparentTo(holder)
     horn.setPos(0.32, 0.0, 0.34)
     horn.setH(90)
+    hardy = make_box(f"{name}_hardy_hole", (0.070, 0.060, 0.020), C.OUTLINE)
+    hardy.reparentTo(holder)
+    hardy.setPos(0.12, -0.04, 0.49)
 
     face = make_box(f"{name}_face", (0.16, 0.20, 0.18), C.STONE)
     face.reparentTo(holder)
     face.setPos(-0.28, 0.0, 0.30)
+    hammer_handle = make_box(f"{name}_hammer_handle", (0.28, 0.035, 0.035), C.WOOD_LIGHT)
+    hammer_handle.reparentTo(holder)
+    hammer_handle.setPos(-0.18, -0.20, 0.48)
+    hammer_handle.setH(-28)
+    hammer_head = make_box(f"{name}_hammer_head", (0.11, 0.075, 0.070), C.METAL_LIGHT)
+    hammer_head.reparentTo(holder)
+    hammer_head.setPos(-0.30, -0.15, 0.50)
+    hammer_head.setH(-28)
     for index, x in enumerate((-0.10, 0.00, 0.10)):
         spark = make_box(f"{name}_spark_{index}", (0.035, 0.035, 0.08), C.SPARK)
         spark.reparentTo(holder)
@@ -985,9 +999,19 @@ def _render_npc(holder: NodePath, name: str, pos: tuple[float, float, float], tu
     body = make_box(f"{name}_body", (0.34, 0.24, 0.48), tunic)
     body.reparentTo(holder)
     body.setPos(*pos)
+    vest = make_box(f"{name}_vest", (0.24, 0.035, 0.34), C.CLOTH_CREAM)
+    vest.reparentTo(holder)
+    vest.setPos(pos[0], pos[1] - 0.13, pos[2] + 0.10)
+    sash = make_box(f"{name}_sash", (0.36, 0.035, 0.055), C.GOLD)
+    sash.reparentTo(holder)
+    sash.setPos(pos[0], pos[1] - 0.14, pos[2] + 0.30)
+    sash.setH(-12)
     belt = make_box(f"{name}_belt", (0.36, 0.26, 0.045), C.LEATHER)
     belt.reparentTo(holder)
     belt.setPos(pos[0], pos[1], pos[2] + 0.22)
+    buckle = make_box(f"{name}_buckle", (0.07, 0.030, 0.055), C.GOLD)
+    buckle.reparentTo(holder)
+    buckle.setPos(pos[0], pos[1] - 0.14, pos[2] + 0.24)
     for side, x in (("left", -0.23), ("right", 0.23)):
         arm = make_box(f"{name}_{side}_arm", (0.08, 0.10, 0.34), tunic)
         arm.reparentTo(holder)
@@ -1006,6 +1030,9 @@ def _render_npc(holder: NodePath, name: str, pos: tuple[float, float, float], tu
     hair = make_cone(f"{name}_hair", 0.17, 0.10, 8, C.HAIR)
     hair.reparentTo(holder)
     hair.setPos(pos[0], pos[1], pos[2] + 0.72)
+    brow = make_box(f"{name}_brow", (0.13, 0.025, 0.025), C.HAIR)
+    brow.reparentTo(holder)
+    brow.setPos(pos[0], pos[1] - 0.14, pos[2] + 0.68)
     nose = make_box(f"{name}_nose", (0.045, 0.070, 0.035), C.SKIN_DARK)
     nose.reparentTo(holder)
     nose.setPos(pos[0], pos[1] - 0.14, pos[2] + 0.63)
@@ -1173,18 +1200,39 @@ def _tree_colors(level: int) -> tuple[Color, Color, Color]:
     return _tiered_palette(level, palette)
 
 
-def _rock_colors(level: int) -> tuple[Color, Color, Color]:
+def _rock_colors(level: int, resource_node: ResourceNode | None = None) -> tuple[Color, Color, Color]:
+    ore_key = ""
+    if resource_node is not None:
+        ore_key = resource_node.item_reward or resource_node.node_type
+    by_ore: dict[str, tuple[Color, Color, Color]] = {
+        "copper_ore": ((0.56, 0.20, 0.08, 1.0), (0.86, 0.42, 0.18, 1.0), C.COPPER),
+        "copper_rock": ((0.56, 0.20, 0.08, 1.0), (0.86, 0.42, 0.18, 1.0), C.COPPER),
+        "tin_ore": ((0.42, 0.44, 0.43, 1.0), (0.70, 0.72, 0.70, 1.0), (0.60, 0.62, 0.60, 1.0)),
+        "tin_rock": ((0.42, 0.44, 0.43, 1.0), (0.70, 0.72, 0.70, 1.0), (0.60, 0.62, 0.60, 1.0)),
+        "iron_ore": ((0.38, 0.22, 0.12, 1.0), (0.66, 0.42, 0.22, 1.0), (0.58, 0.32, 0.15, 1.0)),
+        "iron_rock": ((0.38, 0.22, 0.12, 1.0), (0.66, 0.42, 0.22, 1.0), (0.58, 0.32, 0.15, 1.0)),
+        "coal": ((0.05, 0.05, 0.06, 1.0), (0.18, 0.18, 0.20, 1.0), C.COAL),
+        "coal_rock": ((0.05, 0.05, 0.06, 1.0), (0.18, 0.18, 0.20, 1.0), C.COAL),
+        "mithril_ore": ((0.04, 0.14, 0.34, 1.0), (0.10, 0.28, 0.62, 1.0), (0.08, 0.34, 0.78, 1.0)),
+        "mithril_rock": ((0.04, 0.14, 0.34, 1.0), (0.10, 0.28, 0.62, 1.0), (0.08, 0.34, 0.78, 1.0)),
+        "adamant_ore": ((0.12, 0.42, 0.18, 1.0), (0.34, 0.82, 0.38, 1.0), C.ADAMANT),
+        "adamant_rock": ((0.12, 0.42, 0.18, 1.0), (0.34, 0.82, 0.38, 1.0), C.ADAMANT),
+        "starsteel_ore": ((0.28, 0.56, 0.78, 1.0), (0.58, 0.84, 1.0, 1.0), (0.46, 0.74, 1.0, 1.0)),
+        "starsteel_rock": ((0.28, 0.56, 0.78, 1.0), (0.58, 0.84, 1.0, 1.0), (0.46, 0.74, 1.0, 1.0)),
+    }
+    if ore_key in by_ore:
+        return by_ore[ore_key]
     palette: dict[int, tuple[Color, Color, Color]] = {
-        1: (C.STONE_DARK, C.STONE, C.COPPER),
-        2: ((0.25, 0.25, 0.27, 1.0), C.STONE_LIGHT, C.IRON),
-        3: ((0.11, 0.11, 0.12, 1.0), (0.24, 0.24, 0.25, 1.0), C.COAL),
-        4: ((0.18, 0.26, 0.29, 1.0), (0.34, 0.48, 0.51, 1.0), C.MITHRIL),
-        5: ((0.16, 0.24, 0.18, 1.0), (0.34, 0.44, 0.34, 1.0), C.ADAMANT),
-        15: ((0.25, 0.25, 0.27, 1.0), C.STONE_LIGHT, C.IRON),
-        30: ((0.12, 0.12, 0.13, 1.0), (0.25, 0.25, 0.26, 1.0), C.COAL),
-        55: ((0.20, 0.27, 0.29, 1.0), (0.34, 0.48, 0.51, 1.0), C.MITHRIL),
-        70: ((0.18, 0.25, 0.20, 1.0), (0.34, 0.44, 0.34, 1.0), C.ADAMANT),
-        85: ((0.13, 0.16, 0.22, 1.0), (0.26, 0.32, 0.42, 1.0), (0.32, 0.52, 0.88, 1.0)),
+        1: by_ore["copper_ore"],
+        2: by_ore["tin_ore"],
+        3: by_ore["coal"],
+        4: by_ore["mithril_ore"],
+        5: by_ore["adamant_ore"],
+        15: by_ore["iron_ore"],
+        30: by_ore["coal"],
+        55: by_ore["mithril_ore"],
+        70: by_ore["adamant_ore"],
+        85: by_ore["starsteel_ore"],
     }
     return _tiered_palette(level, palette)
 

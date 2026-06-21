@@ -39,6 +39,21 @@ def test_withdraw_stack_moves_items_from_bank_to_inventory() -> None:
     assert bank.count("raw_fish") == 3
 
 
+def test_withdraw_respects_non_stackable_inventory_slots() -> None:
+    item_definitions = {
+        "coins": {"category": "currency", "stackable": True},
+        "logs": {"category": "wood", "stackable": False},
+    }
+    inventory = Inventory({"coins": 25})
+    bank = Bank({"logs": 5}, item_definitions=item_definitions, slot_limit=2)
+
+    withdrawn = bank.withdraw(inventory, "logs", 3)
+
+    assert withdrawn == 1
+    assert inventory.to_dict() == {"coins": 25, "logs": 1}
+    assert bank.to_dict() == {"logs": 4}
+
+
 def test_bank_serialization_round_trip() -> None:
     bank = Bank.from_dict({"logs": 2, "raw_fish": 0})
 

@@ -15,6 +15,9 @@ class FakeWidget:
     def setText(self, text: str) -> None:
         self.text = text
 
+    def get(self) -> str:
+        return str(self.text)
+
     def setPos(self, *pos) -> None:
         self.pos = pos
         self.options["pos"] = pos
@@ -82,6 +85,11 @@ class FakeOnscreenText(FakeWidget):
         super().__init__(*args, **kwargs)
         self.may_change = bool(self.options.get("mayChange")) or not self.text
 
+    def setText(self, text: str) -> None:
+        if not self.may_change:
+            raise AssertionError("static OnscreenText cannot be changed")
+        super().setText(text)
+
     def setPos(self, *pos) -> None:
         if not self.may_change:
             raise AssertionError("static OnscreenText cannot be repositioned")
@@ -110,25 +118,25 @@ def test_inventory_grid_has_fixed_slots_and_populates_in_category_order(monkeypa
         skills=FakeSkills(),
     )
 
-    assert [slot.item_id for slot in ui.inventory_slots[:5]] == [
+    assert [slot.item_id for slot in ui.inventory_slots[:6]] == [
         "coins",
         "logs",
+        "logs",
+        "logs",
         "copper_ore",
-        "raw_shrimp",
-        "mystery_item",
+        "copper_ore",
     ]
     assert ui.inventory_slots[0].button.text == "12"
-    assert ui.inventory_slots[1].button.text == "3"
+    assert ui.inventory_slots[1].button.text == ""
     assert ui.inventory_slots[0].button.options["text_scale"] == hud.INVENTORY_QUANTITY_TEXT_SCALE
     assert any(not part.hidden for part in ui.inventory_slots[0].icon.parts)
     assert ui.inventory_slots[0].icon.label.text == "$"
-    assert ui.inventory_slots[1].icon.label.text == "LOG"
-    assert ui.inventory_slots[2].icon.label.text == "ORE"
-    assert ui.inventory_slots[3].icon.label.text == "FISH"
-    assert ui.inventory_slots[5].item_id is None
-    assert ui.inventory_slots[5].button.text == ""
-    assert all(part.hidden for part in ui.inventory_slots[5].icon.parts)
-    assert ui.inventory_slots[5].icon.label.hidden is True
+    assert ui.inventory_slots[1].icon.label.hidden is True
+    assert ui.inventory_slots[4].icon.label.hidden is True
+    assert ui.inventory_slots[15].item_id is None
+    assert ui.inventory_slots[15].button.text == ""
+    assert all(part.hidden for part in ui.inventory_slots[15].icon.parts)
+    assert ui.inventory_slots[15].icon.label.hidden is True
 
 
 def test_inventory_expands_gear_and_tools_without_quantity_labels(monkeypatch) -> None:
@@ -154,10 +162,10 @@ def test_inventory_expands_gear_and_tools_without_quantity_labels(monkeypatch) -
         "logs",
     ]
     assert [slot.button.text for slot in ui.inventory_slots[:6]] == ["", "", "", "", "", ""]
-    assert ui.inventory_slots[6].button.text == "3"
-    assert ui.inventory_slots[0].icon.label.text == "AXE"
-    assert ui.inventory_slots[2].icon.label.text == "SWD"
-    assert ui.inventory_slots[4].icon.label.text == "SHD"
+    assert ui.inventory_slots[6].button.text == ""
+    assert ui.inventory_slots[0].icon.label.hidden is True
+    assert ui.inventory_slots[2].icon.label.hidden is True
+    assert ui.inventory_slots[4].icon.label.hidden is True
 
 
 def test_inventory_slot_hover_shows_item_name_without_world_hover_override(monkeypatch) -> None:
@@ -176,11 +184,11 @@ def test_inventory_slot_hover_shows_item_name_without_world_hover_override(monke
 
     ui.inventory_slots[0].button.trigger(hud.DGG.ENTER)
 
-    assert ui.feedback.text == "Raw shrimp x4"
+    assert ui.feedback.text == "Raw shrimp"
 
     ui.set_hover_text("Tree")
 
-    assert ui.feedback.text == "Raw shrimp x4"
+    assert ui.feedback.text == "Raw shrimp"
 
     ui.inventory_slots[0].button.trigger(hud.DGG.EXIT)
 
@@ -201,7 +209,7 @@ def test_inventory_slots_use_select_item_callback(monkeypatch) -> None:
     )
 
     ui.inventory_slots[0].button.click()
-    ui.inventory_slots[1].button.click()
+    ui.inventory_slots[4].button.click()
 
     assert selected == ["raw_shrimp"]
 
@@ -342,6 +350,17 @@ def test_quantity_mode_caps_transaction_amount(monkeypatch) -> None:
     assert ui.transaction_quantity(12) == 10
 
 
+def test_opening_shop_defaults_to_single_item_quantity(monkeypatch) -> None:
+    _install_hud_fakes(monkeypatch)
+    ui = hud.Hud(_items())
+
+    ui.set_quantity_mode("all")
+    ui.open_shop()
+
+    assert ui.quantity_mode == "1"
+    assert ui.transaction_quantity(12) == 1
+
+
 def test_context_menu_dispatches_selected_action_and_hides(monkeypatch) -> None:
     _install_hud_fakes(monkeypatch)
     selected: list[str] = []
@@ -434,12 +453,35 @@ def test_clothes_tab_shows_equipped_item_icons(monkeypatch) -> None:
     head_slot = ui.equipment_slots["head"]
 
     assert weapon_slot.button.text == ""
-    assert weapon_slot.icon.label.text == "SWD"
+    assert weapon_slot.icon.label.hidden is True
     assert any(not part.hidden for part in weapon_slot.icon.parts)
     assert shield_slot.button.text == ""
-    assert shield_slot.icon.label.text == "SHD"
+    assert shield_slot.icon.label.hidden is True
     assert head_slot.button.text == "Head"
     assert head_slot.icon.label.hidden is True
+
+
+def test_clothes_tab_selects_combat_training_style(monkeypatch) -> None:
+    _install_hud_fakes(monkeypatch)
+    selected: list[str] = []
+    ui = hud.Hud(_items(), on_combat_style=selected.append)
+
+    ui.update(
+        account="test",
+        time_text="Day 1 12:00",
+        selected_text="Selected: none",
+        inventory={},
+        bank={},
+        combat_style="strength",
+        skills=FakeSkills(),
+    )
+
+    assert ui.combat_style_buttons["strength"].options["frameColor"][0] == hud.SLOT_HILITE
+    assert ui.combat_style_buttons["attack"].options["frameColor"][0] == hud.BUTTON
+
+    ui.combat_style_buttons["defence"].click()
+
+    assert selected == ["defence"]
 
 
 def test_skills_tab_uses_larger_two_line_skill_rows(monkeypatch) -> None:
@@ -482,8 +524,22 @@ def test_selected_inventory_slot_is_highlighted(monkeypatch) -> None:
 
     assert ui.inventory_slots[0].item_id == "logs"
     assert ui.inventory_slots[0].button.options["frameColor"][0] == hud.SLOT
-    assert ui.inventory_slots[1].item_id == "raw_shrimp"
-    assert ui.inventory_slots[1].button.options["frameColor"][0] == hud.SLOT_HILITE
+    assert ui.inventory_slots[3].item_id == "raw_shrimp"
+    assert ui.inventory_slots[3].button.options["frameColor"][0] == hud.SLOT_HILITE
+
+
+def test_ore_icons_use_distinct_metal_palettes() -> None:
+    items = {
+        "tin_ore": {"name": "Tin ore", "category": "ore"},
+        "iron_ore": {"name": "Iron ore", "category": "ore"},
+        "mithril_ore": {"name": "Mithril ore", "category": "ore"},
+        "starsteel_ore": {"name": "Starsteel ore", "category": "ore"},
+    }
+
+    assert hud._item_icon_specs(items, "tin_ore")[1][2] == (0.62, 0.64, 0.62, 1.0)
+    assert hud._item_icon_specs(items, "iron_ore")[1][2] == (0.58, 0.32, 0.15, 1.0)
+    assert hud._item_icon_specs(items, "mithril_ore")[1][2] == (0.08, 0.34, 0.78, 1.0)
+    assert hud._item_icon_specs(items, "starsteel_ore")[1][2] == (0.46, 0.74, 1.0, 1.0)
 
 
 def test_starsteel_icons_use_high_tier_palette() -> None:
@@ -493,28 +549,46 @@ def test_starsteel_icons_use_high_tier_palette() -> None:
         "starsteel_sword": {"name": "Starsteel sword", "category": "weapon"},
     }
 
-    assert hud._metal_color("starsteel_sword") == (0.34, 0.68, 0.94, 1.0)
+    assert hud._metal_color("starsteel_sword") == (0.46, 0.74, 1.0, 1.0)
     assert hud._item_icon_specs(items, "starsteel_ore")[1][2] == (
-        0.35,
-        0.68,
-        0.92,
+        0.46,
+        0.74,
+        1.0,
         1.0,
     )
     assert hud._item_icon_specs(items, "starsteel_bar")[1][2] == (
-        0.34,
-        0.68,
-        0.94,
+        0.46,
+        0.74,
+        1.0,
         1.0,
     )
 
 
 def test_bronze_tool_icons_use_bronze_metal() -> None:
-    items = {"bronze_axe": {"name": "Bronze axe", "category": "tool", "tool_for": "woodcutting"}}
+    items = {"bronze_axe": {"name": "Bronze axe", "category": "tool", "stackable": False, "tool_for": "woodcutting"}}
 
     specs = hud._item_icon_specs(items, "bronze_axe")
 
-    assert specs[1][2] == hud._metal_color("bronze_axe")
-    assert specs[2][2] == hud._metal_shadow_color("bronze_axe")
+    colors = [spec[2] for spec in specs]
+    assert hud._metal_color("bronze_axe") in colors
+    assert hud._metal_shadow_color("bronze_axe") in colors
+
+
+def test_shape_first_gear_icons_hide_text_labels(monkeypatch) -> None:
+    _install_hud_fakes(monkeypatch)
+    ui = hud.Hud(_items())
+
+    ui.update(
+        account="test",
+        time_text="Day 1 12:00",
+        selected_text="Selected: none",
+        inventory={"bronze_axe": 1, "bronze_sword": 1, "bronze_shield": 1},
+        bank={},
+        skills=FakeSkills(),
+    )
+
+    assert all(ui.inventory_slots[index].icon.label.hidden for index in range(3))
+    assert all(any(not part.hidden for part in ui.inventory_slots[index].icon.parts) for index in range(3))
 
 
 def test_bank_rows_show_positive_inventory_or_bank_stacks(monkeypatch) -> None:
@@ -589,12 +663,12 @@ def test_bank_rows_use_larger_text_and_buttons(monkeypatch) -> None:
     assert row.withdraw_button.options["scale"] == hud.BANK_ROW_BUTTON_TEXT_SCALE
 
 
-def test_shop_rows_show_stock_and_buy_callback(monkeypatch) -> None:
+def test_shop_buy_tab_shows_simple_rows_and_quantity_context(monkeypatch) -> None:
     _install_hud_fakes(monkeypatch)
     bought: list[str] = []
     items = {
         **_items(),
-        "bronze_axe": {"name": "Bronze axe", "category": "tool", "sell_price": 8},
+        "bronze_axe": {"name": "Bronze axe", "category": "tool", "stackable": False, "sell_price": 8},
     }
     ui = hud.Hud(items, on_buy_item=bought.append)
 
@@ -609,22 +683,45 @@ def test_shop_rows_show_stock_and_buy_callback(monkeypatch) -> None:
     )
 
     assert list(ui.shop_rows) == ["bronze_axe"]
-    assert ui.shop_rows["bronze_axe"].quantity_label.text == "0"
+    assert any(not part.hidden for part in ui.shop_rows["bronze_axe"].icon.parts)
+    assert ui.shop_rows["bronze_axe"].icon.label.hidden is True
+    assert ui.shop_rows["bronze_axe"].quantity_label.hidden is True
     assert ui.shop_rows["bronze_axe"].price_label.text == "25"
     assert ui.shop_coin_label.text == "Coins: 30"
+    assert not hasattr(ui.shop_rows["bronze_axe"], "action_button")
 
-    ui.shop_rows["bronze_axe"].action_button.click()
+    ui.shop_rows["bronze_axe"].item_button.trigger(hud.DGG.B3PRESS)
 
+    assert [button.text for button in ui.context_buttons] == [
+        "Buy 1 Bronze axe",
+        "Buy 5 Bronze axe",
+        "Buy 10 Bronze axe",
+        "Buy X Bronze axe",
+        "Buy All Bronze axe",
+    ]
+
+    ui.context_buttons[1].click()
+
+    assert ui.quantity_mode == "5"
     assert bought == ["bronze_axe"]
 
+    ui.shop_rows["bronze_axe"].item_button.trigger(hud.DGG.B3PRESS)
+    ui.context_buttons[3].click()
+    assert ui.shop_amount_panel.hidden is False
 
-def test_shop_rows_include_inventory_sell_actions(monkeypatch) -> None:
+    ui._submit_shop_amount("7")
+
+    assert ui.quantity_mode == "7"
+    assert bought == ["bronze_axe", "bronze_axe"]
+
+
+def test_shop_sell_tab_shows_inventory_rows_and_quantity_context(monkeypatch) -> None:
     _install_hud_fakes(monkeypatch)
     sold: list[str] = []
     items = {
         **_items(),
-        "bronze_axe": {"name": "Bronze axe", "category": "tool", "sell_price": 8},
-        "logs": {"name": "Logs", "category": "wood", "sell_price": 3},
+        "bronze_axe": {"name": "Bronze axe", "category": "tool", "stackable": False, "sell_price": 8},
+        "logs": {"name": "Logs", "category": "wood", "stackable": False, "sell_price": 3},
     }
     ui = hud.Hud(items, on_sell_item=sold.append)
 
@@ -637,14 +734,50 @@ def test_shop_rows_include_inventory_sell_actions(monkeypatch) -> None:
         skills=FakeSkills(),
         shop_stock=[{"item_id": "bronze_axe", "price": 25}],
     )
+    ui.select_shop_tab("sell")
 
-    assert list(ui.shop_rows) == ["bronze_axe", "sell:logs"]
+    assert list(ui.shop_rows) == ["sell:logs"]
     assert ui.shop_rows["sell:logs"].quantity_label.text == "2"
     assert ui.shop_rows["sell:logs"].price_label.text == "3"
 
-    ui.shop_rows["sell:logs"].action_button.click()
+    ui.shop_rows["sell:logs"].item_button.trigger(hud.DGG.B3PRESS)
+
+    assert [button.text for button in ui.context_buttons] == [
+        "Sell 1 Logs",
+        "Sell 5 Logs",
+        "Sell 10 Logs",
+        "Sell X Logs",
+        "Sell All Logs",
+    ]
+
+    ui.context_buttons[4].click()
 
     assert sold == ["logs"]
+    assert ui.quantity_mode == "all"
+
+
+def test_shop_sell_tab_empty_state_uses_mutable_label(monkeypatch) -> None:
+    _install_hud_fakes(monkeypatch)
+    items = {
+        **_items(),
+        "bronze_axe": {"name": "Bronze axe", "category": "tool", "stackable": False, "sell_price": 8},
+    }
+    ui = hud.Hud(items)
+
+    ui.update(
+        account="test",
+        time_text="Day 1 08:00",
+        selected_text="Selected: none",
+        inventory={"coins": 30},
+        bank={},
+        skills=FakeSkills(),
+        shop_stock=[{"item_id": "bronze_axe", "price": 25}],
+    )
+    ui.select_shop_tab("sell")
+
+    assert ui.empty_shop_label.options["mayChange"] is True
+    assert ui.empty_shop_label.hidden is False
+    assert ui.empty_shop_label.text == "Nothing to sell"
 
 
 class FakeSkills:
@@ -660,32 +793,37 @@ class FakeSkill:
 def _install_hud_fakes(monkeypatch) -> None:
     monkeypatch.setattr(hud, "DirectFrame", FakeWidget)
     monkeypatch.setattr(hud, "DirectButton", FakeWidget)
+    monkeypatch.setattr(hud, "DirectEntry", FakeWidget)
     monkeypatch.setattr(hud, "OnscreenText", FakeOnscreenText)
 
 
 def _items() -> dict[str, dict[str, object]]:
     return {
-        "coins": {"name": "Coins", "category": "currency"},
-        "logs": {"name": "Logs", "category": "wood"},
-        "copper_ore": {"name": "Copper ore", "category": "ore"},
+        "coins": {"name": "Coins", "category": "currency", "stackable": True},
+        "logs": {"name": "Logs", "category": "wood", "stackable": False},
+        "copper_ore": {"name": "Copper ore", "category": "ore", "stackable": False},
         "raw_shrimp": {
             "name": "Raw shrimp",
             "category": "fish",
+            "stackable": False,
             "cook_result": "cooked_shrimp",
         },
         "bronze_axe": {
             "name": "Bronze axe",
             "category": "tool",
+            "stackable": False,
             "tool_for": "woodcutting",
         },
         "bronze_sword": {
             "name": "Bronze sword",
             "category": "weapon",
+            "stackable": False,
             "equip_slot": "weapon",
         },
         "bronze_shield": {
             "name": "Bronze shield",
             "category": "armor",
+            "stackable": False,
             "equip_slot": "shield",
         },
         "mystery_item": {"name": "Mystery item"},

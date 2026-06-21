@@ -116,6 +116,7 @@ class SaveTests(unittest.TestCase):
 
         self.assertEqual(state["combat"], {"current_hitpoints": 10, "mobs": {}, "ground_items": []})
         self.assertEqual(state["world"]["combat"], {"current_hitpoints": 10, "mobs": {}, "ground_items": []})
+        self.assertEqual(state["combat_training_style"], "attack")
         self.assertEqual(state["quest_state"], {})
 
     def test_default_save_includes_skilling_and_combat_skills(self) -> None:
@@ -175,6 +176,18 @@ class SaveTests(unittest.TestCase):
 
         self.assertEqual(migrated["inventory"], {"coins": 25})
         self.assertNotIn("coins", migrated)
+
+    def test_missing_or_invalid_combat_training_style_migrates_to_attack(self) -> None:
+        self.assertEqual(migrate_save_state({"inventory": {}})["combat_training_style"], "attack")
+        self.assertEqual(
+            migrate_save_state({"inventory": {}, "combat_training_style": "magic"})["combat_training_style"],
+            "attack",
+        )
+
+    def test_combat_training_style_migration_preserves_valid_style(self) -> None:
+        migrated = migrate_save_state({"inventory": {}, "combat_training_style": "strength"})
+
+        self.assertEqual(migrated["combat_training_style"], "strength")
 
     def test_legacy_content_ids_migrate_to_starsteel_ids(self) -> None:
         state = {

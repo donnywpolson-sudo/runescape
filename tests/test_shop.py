@@ -79,6 +79,29 @@ def test_shop_buy_supports_limited_quantity() -> None:
     assert inventory.to_dict() == {"coins": 5, "bronze_axe": 3}
 
 
+def test_shop_buy_rejects_non_stackable_item_when_inventory_is_full() -> None:
+    inventory = Inventory({"coins": 80})
+    shop = Shop(
+        {
+            "coins": {"name": "Coins", "sell_price": 0, "stackable": True},
+            "bronze_axe": {
+                "name": "Bronze axe",
+                "sell_price": 8,
+                "category": "tool",
+                "stackable": False,
+            },
+        },
+        [{"item_id": "bronze_axe", "price": 25}],
+        slot_limit=1,
+    )
+
+    result = shop.buy(inventory, "bronze_axe")
+
+    assert result.success is False
+    assert result.feedback == "Inventory is full"
+    assert inventory.to_dict() == {"coins": 80}
+
+
 def test_shop_buy_requires_enough_coins() -> None:
     inventory = Inventory({"coins": 10})
     shop = Shop(

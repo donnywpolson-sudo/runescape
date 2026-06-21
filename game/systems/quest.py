@@ -144,6 +144,17 @@ class QuestSystem:
     def talk_to_starter(self) -> QuestResult:
         return self.talk_to(STARTER_QUEST_ID)
 
+    def pending_completion_item_rewards(self, quest_id: str) -> tuple[QuestItemReward, ...]:
+        definition = self.definitions.get(quest_id)
+        if definition is None:
+            return ()
+        state = self._state_for(definition.quest_id)
+        if state.completed or not state.started:
+            return ()
+        if any(objective.flag not in state.flags for objective in definition.objectives):
+            return ()
+        return definition.item_rewards
+
     def talk_to(self, quest_id: str) -> QuestResult:
         definition = self.definitions.get(quest_id)
         if definition is None:

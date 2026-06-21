@@ -49,9 +49,12 @@ class Equipment:
     def unequip(self, slot: str) -> EquipmentResult:
         if slot not in EQUIPMENT_SLOTS:
             return EquipmentResult(False, "Unknown equipment slot")
-        item_id = self.slots.pop(slot, None)
+        item_id = self.slots.get(slot)
         if item_id is None:
             return EquipmentResult(False, f"No {slot} equipped")
+        if hasattr(self.inventory, "can_add") and not self.inventory.can_add(item_id, 1, item_definitions=self.item_definitions):
+            return EquipmentResult(False, "Inventory is full")
+        self.slots.pop(slot, None)
         self.inventory.add(item_id, 1)
         return EquipmentResult(True, f"Unequipped {self._item_name(item_id)}")
 

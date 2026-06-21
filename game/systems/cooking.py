@@ -4,6 +4,8 @@ from dataclasses import dataclass
 import time
 from typing import Any, Callable
 
+from game.systems.inventory import inventory_can_transact
+
 
 TimeProvider = Callable[[], float]
 
@@ -77,6 +79,13 @@ class CookingSystem:
         current_level = _skill_level(self.skills, "cooking")
         if current_level < recipe.required_level:
             return CookingResult(False, f"You need Cooking level {recipe.required_level}")
+        if not inventory_can_transact(
+            self.inventory.to_dict(),
+            self.item_definitions,
+            remove={recipe.raw_item_id: 1},
+            add={recipe.cooked_item_id: 1},
+        ):
+            return CookingResult(False, "Inventory is full")
 
         duration = self.cook_duration(recipe)
         self.pending = PendingCook(
@@ -102,6 +111,13 @@ class CookingSystem:
         recipe = self.recipes.get(pending.raw_item_id)
         if recipe is None:
             return CookingResult(False, "Select a raw fish first")
+        if not inventory_can_transact(
+            self.inventory.to_dict(),
+            self.item_definitions,
+            remove={recipe.raw_item_id: 1},
+            add={recipe.cooked_item_id: 1},
+        ):
+            return CookingResult(False, "Inventory is full")
 
         if self.inventory.remove(recipe.raw_item_id, 1) != 1:
             return CookingResult(False, f"No {_item_name(self.item_definitions, recipe.raw_item_id)} to cook")

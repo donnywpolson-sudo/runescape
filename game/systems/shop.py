@@ -3,8 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from game.systems.inventory import COINS_ITEM_ID
+from game.systems.inventory import COINS_ITEM_ID, INVENTORY_SLOT_LIMIT
 from game.systems.inventory import Inventory
+from game.systems.inventory import inventory_can_transact
 
 
 @dataclass(frozen=True)
@@ -27,8 +28,11 @@ class Shop:
         self,
         item_definitions: dict[str, dict[str, object]],
         stock: list[dict[str, object]] | tuple[dict[str, object], ...] | None = None,
+        *,
+        slot_limit: int = INVENTORY_SLOT_LIMIT,
     ) -> None:
         self.item_definitions = item_definitions
+        self.slot_limit = slot_limit
         self.stock = {
             stock_item.item_id: stock_item
             for stock_item in (_stock_item_from_dict(raw_stock_item, item_definitions) for raw_stock_item in stock or [])
@@ -51,6 +55,14 @@ class Shop:
         total_price = stock_item.price * quantity
         if inventory.count(COINS_ITEM_ID) < total_price:
             return PurchaseResult(False, f"Need {total_price} coins", item_id=item_id)
+        if not inventory_can_transact(
+            inventory.to_dict(),
+            self.item_definitions,
+            remove={COINS_ITEM_ID: total_price},
+            add={item_id: quantity},
+            slot_limit=self.slot_limit,
+        ):
+            return PurchaseResult(False, "Inventory is full", item_id=item_id)
 
         inventory.remove(COINS_ITEM_ID, total_price)
         inventory.add(item_id, quantity)

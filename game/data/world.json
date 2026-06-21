@@ -543,7 +543,7 @@
     {
       "node_id": "shrimp_spot_01",
       "node_type": "shrimp_spot",
-      "display_name": "Raw shrimp",
+      "display_name": "Fishing spot",
       "skill_id": "fishing",
       "required_level": 1,
       "xp_reward": 15,
@@ -561,7 +561,7 @@
     {
       "node_id": "trout_spot_01",
       "node_type": "trout_spot",
-      "display_name": "Raw trout",
+      "display_name": "Fishing spot",
       "skill_id": "fishing",
       "required_level": 20,
       "xp_reward": 50,
@@ -579,7 +579,7 @@
     {
       "node_id": "salmon_spot_01",
       "node_type": "salmon_spot",
-      "display_name": "Raw salmon",
+      "display_name": "Fishing spot",
       "skill_id": "fishing",
       "required_level": 30,
       "xp_reward": 70,
@@ -597,7 +597,7 @@
     {
       "node_id": "lobster_spot_01",
       "node_type": "lobster_spot",
-      "display_name": "Raw lobster",
+      "display_name": "Fishing spot",
       "skill_id": "fishing",
       "required_level": 40,
       "xp_reward": 90,
@@ -615,7 +615,7 @@
     {
       "node_id": "swordfish_spot_01",
       "node_type": "swordfish_spot",
-      "display_name": "Raw swordfish",
+      "display_name": "Fishing spot",
       "skill_id": "fishing",
       "required_level": 50,
       "xp_reward": 110,
@@ -633,7 +633,7 @@
     {
       "node_id": "monkfish_spot_01",
       "node_type": "monkfish_spot",
-      "display_name": "Raw monkfish",
+      "display_name": "Fishing spot",
       "skill_id": "fishing",
       "required_level": 62,
       "xp_reward": 130,
@@ -651,7 +651,7 @@
     {
       "node_id": "shark_spot_01",
       "node_type": "shark_spot",
-      "display_name": "Raw shark",
+      "display_name": "Fishing spot",
       "skill_id": "fishing",
       "required_level": 76,
       "xp_reward": 180,
@@ -669,7 +669,7 @@
     {
       "node_id": "anglerfish_spot_01",
       "node_type": "anglerfish_spot",
-      "display_name": "Raw anglerfish",
+      "display_name": "Fishing spot",
       "skill_id": "fishing",
       "required_level": 82,
       "xp_reward": 220,
@@ -703,146 +703,7 @@
       ]
     }
   ],
-  "decorations": [
-    {
-      "id": "fence_bank_01",
-      "kind": "fence",
-      "position": [
-        12,
-        14
-      ],
-      "rotation": 90,
-      "blocking": true
-    },
-    {
-      "id": "fence_bank_02",
-      "kind": "fence",
-      "position": [
-        14,
-        13
-      ],
-      "rotation": 0,
-      "blocking": true
-    },
-    {
-      "id": "signpost_crossroads",
-      "kind": "signpost",
-      "position": [
-        16,
-        16
-      ],
-      "rotation": 45
-    },
-    {
-      "id": "lamp_crossroads",
-      "kind": "lamp",
-      "position": [
-        14,
-        15
-      ],
-      "rotation": 0
-    },
-    {
-      "id": "crate_shop_01",
-      "kind": "crate",
-      "position": [
-        22,
-        14
-      ],
-      "rotation": 12
-    },
-    {
-      "id": "barrel_shop_01",
-      "kind": "barrel",
-      "position": [
-        24,
-        15
-      ],
-      "rotation": 0
-    },
-    {
-      "id": "barrel_shop_02",
-      "kind": "barrel",
-      "position": [
-        21,
-        14
-      ],
-      "rotation": 0
-    },
-    {
-      "id": "dock_fishing_01",
-      "kind": "dock",
-      "position": [
-        8,
-        20
-      ],
-      "rotation": 0
-    },
-    {
-      "id": "dock_fishing_02",
-      "kind": "dock",
-      "position": [
-        7,
-        20
-      ],
-      "rotation": 0
-    },
-    {
-      "id": "mushroom_grove_01",
-      "kind": "mushroom",
-      "position": [
-        9,
-        12
-      ],
-      "rotation": 0
-    },
-    {
-      "id": "mushroom_grove_02",
-      "kind": "mushroom",
-      "position": [
-        17,
-        10
-      ],
-      "rotation": 0
-    },
-    {
-      "id": "bush_grove_01",
-      "kind": "bush",
-      "position": [
-        8,
-        10
-      ],
-      "rotation": 30
-    },
-    {
-      "id": "bush_grove_02",
-      "kind": "bush",
-      "position": [
-        17,
-        14
-      ],
-      "rotation": -15
-    },
-    {
-      "id": "ruins_mine_01",
-      "kind": "ruins",
-      "position": [
-        24,
-        20
-      ],
-      "rotation": 20,
-      "blocking": true
-    },
-    {
-      "id": "lamp_mine_01",
-      "kind": "lamp",
-      "position": [
-        20,
-        16
-      ],
-      "rotation": 0
-    }
-  ],
+  "decorations": [],
   "shop": {
     "id": "shop_01",
     "name": "General Store",

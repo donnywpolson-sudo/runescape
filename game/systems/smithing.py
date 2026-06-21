@@ -4,6 +4,8 @@ from dataclasses import dataclass
 import time
 from typing import Any, Callable
 
+from game.systems.inventory import inventory_can_transact
+
 
 TimeProvider = Callable[[], float]
 
@@ -74,10 +76,12 @@ class SmithingSystem:
         inventory: Any,
         skills: Any,
         *,
+        item_definitions: dict[str, dict[str, object]] | None = None,
         time_provider: TimeProvider = time.time,
     ) -> None:
         self.inventory = inventory
         self.skills = skills
+        self.item_definitions = item_definitions or {}
         self.time_provider = time_provider
         self.recipes = _recipes_from_data(recipes_data)
         self.pending: PendingSmithing | None = None
@@ -124,6 +128,13 @@ class SmithingSystem:
         missing = _missing_inputs(self.inventory, recipe.inputs)
         if missing:
             return SmithingResult(False, f"You need {missing}", recipe_id=recipe.recipe_id)
+        if not inventory_can_transact(
+            self.inventory.to_dict(),
+            self.item_definitions,
+            remove=recipe.inputs,
+            add={recipe.output_item_id: recipe.output_quantity},
+        ):
+            return SmithingResult(False, "Inventory is full", recipe_id=recipe.recipe_id)
 
         duration = self.action_duration(recipe)
         self.pending = PendingSmithing(
@@ -154,6 +165,13 @@ class SmithingSystem:
         missing = _missing_inputs(self.inventory, recipe.inputs)
         if missing:
             return SmithingResult(False, f"You need {missing}", recipe_id=recipe.recipe_id)
+        if not inventory_can_transact(
+            self.inventory.to_dict(),
+            self.item_definitions,
+            remove=recipe.inputs,
+            add={recipe.output_item_id: recipe.output_quantity},
+        ):
+            return SmithingResult(False, "Inventory is full", recipe_id=recipe.recipe_id)
 
         for item_id, quantity in recipe.inputs.items():
             self.inventory.remove(item_id, quantity)

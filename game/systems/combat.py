@@ -5,6 +5,7 @@ import time
 from typing import Any, Callable, Iterable
 
 from game import settings
+from game.systems.combat_training import DEFAULT_COMBAT_TRAINING_STYLE, normalize_combat_training_style
 from game.world.grid import Tile, TileGrid
 
 
@@ -125,15 +126,21 @@ class CombatSystem:
         damage_per_hit: int = 1,
         skills: Any | None = None,
         current_hitpoints: int | None = None,
+        training_style: str = DEFAULT_COMBAT_TRAINING_STYLE,
     ) -> None:
         self.mobs = dict(mobs) if isinstance(mobs, dict) else {mob.mob_id: mob for mob in mobs}
         self.time_provider = time_provider
         self.damage_per_hit = max(1, int(damage_per_hit))
         self.defence_bonus = 0
         self.skills = skills
+        self.training_style = normalize_combat_training_style(training_style)
         self.current_hitpoints = int(current_hitpoints) if current_hitpoints is not None else self.max_hitpoints()
         self.states: dict[str, MobState] = {}
         self.pending: PendingCombat | None = None
+
+    def set_training_style(self, style: str) -> str:
+        self.training_style = normalize_combat_training_style(style)
+        return self.training_style
 
     def max_hitpoints(self) -> int:
         if self.skills is None:
@@ -346,9 +353,7 @@ class CombatSystem:
     def _grant_combat_xp(self, damage: int) -> None:
         if self.skills is None or damage <= 0 or not hasattr(self.skills, "add_xp"):
             return
-        self.skills.add_xp("attack", damage * 4)
-        self.skills.add_xp("strength", damage * 4)
-        self.skills.add_xp("defence", damage * 2)
+        self.skills.add_xp(self.training_style, damage * 4)
         self.skills.add_xp("hitpoints", damage)
 
 

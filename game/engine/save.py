@@ -11,10 +11,11 @@ import re
 from typing import Any
 
 from game import settings
+from game.systems.combat_training import DEFAULT_COMBAT_TRAINING_STYLE, normalize_combat_training_style
 from game.systems.inventory import COINS_ITEM_ID
 
 DEFAULT_SAVE_DIR = settings.SAVES_DIR
-SAVE_VERSION = 4
+SAVE_VERSION = 5
 MAX_SAVE_STEM_LENGTH = 64
 LOGGER = logging.getLogger(__name__)
 STARTER_ITEMS = {
@@ -104,6 +105,7 @@ def create_default_save(username: str) -> dict[str, Any]:
             "inventory": dict(STARTER_ITEMS),
             "bank": {},
             "equipment": {},
+            "combat_training_style": DEFAULT_COMBAT_TRAINING_STYLE,
             "skills": {
                 skill_id: {"xp": 0, "level": 10 if skill_id == "hitpoints" else 1}
                 for skill_id in DEFAULT_SKILL_IDS
@@ -291,6 +293,9 @@ def migrate_playable_v1_defaults(state: dict[str, Any]) -> dict[str, Any]:
     migrated["world"] = world
 
     migrated.setdefault("quest_state", world.get("quest_state", {}))
+    migrated["combat_training_style"] = normalize_combat_training_style(
+        str(migrated.get("combat_training_style") or DEFAULT_COMBAT_TRAINING_STYLE)
+    )
     migrated["version"] = SAVE_VERSION
     return migrated
 

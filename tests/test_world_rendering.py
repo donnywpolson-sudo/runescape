@@ -87,15 +87,36 @@ def test_grass_tiles_avoid_high_contrast_repeating_slabs() -> None:
     tile = parent.find("**/tile_2_3")
     assert tile.isEmpty() is False
     assert tile.find("**/grass_base").isEmpty() is False
+    assert tile.find("**/grass_soft_mottle").isEmpty() is True
+    assert tile.find("**/grass_tuft").isEmpty() is True
+    assert tile.find("**/grass_pebble").isEmpty() is True
+    assert tile.find("**/grass_flower").isEmpty() is True
+    assert tile.find("**/grass_fallen_leaf").isEmpty() is True
     assert tile.find("**/grass_cross_tile_patch").isEmpty() is True
     assert tile.find("**/grass_dirt_blend").isEmpty() is True
     assert tile.find("**/grass_edge_blade_0").isEmpty() is True
 
 
+def test_dirt_tiles_do_not_spawn_random_ground_props() -> None:
+    parent = NodePath("test_render")
+
+    visuals.render_terrain_tile(parent, (2, 3), "dirt", {"north"})
+
+    tile = parent.find("**/tile_2_3")
+    assert tile.isEmpty() is False
+    assert tile.find("**/dirt_base").isEmpty() is False
+    assert tile.find("**/dirt_path").isEmpty() is False
+    assert tile.find("**/dirt_edge_north").isEmpty() is False
+    assert tile.find("**/dirt_rut_0").isEmpty() is True
+    assert tile.find("**/dirt_worn_strip").isEmpty() is True
+    assert tile.find("**/dirt_pebble").isEmpty() is True
+    assert tile.find("**/dirt_flagstone").isEmpty() is True
+
+
 def test_ore_node_exposes_material_color_and_depleted_state() -> None:
     world = WorldMap(
         {
-            "width": 4,
+            "width": 7,
             "height": 4,
             "blocked_tiles": [],
             "water_tiles": [],
@@ -114,6 +135,66 @@ def test_ore_node_exposes_material_color_and_depleted_state() -> None:
                     "depleted_state": "depleted_rock",
                     "respawn_seconds": 30,
                     "base_gather_seconds": 2.2,
+                },
+                {
+                    "node_id": "tin_rock_01",
+                    "node_type": "tin_rock",
+                    "display_name": "Tin rock",
+                    "skill_id": "mining",
+                    "required_level": 1,
+                    "xp_reward": 18,
+                    "item_reward": "tin_ore",
+                    "quantity_reward": 1,
+                    "position": [2, 1],
+                    "blocks_movement": True,
+                    "depleted_state": "depleted_rock",
+                    "respawn_seconds": 30,
+                    "base_gather_seconds": 2.0,
+                },
+                {
+                    "node_id": "iron_rock_01",
+                    "node_type": "iron_rock",
+                    "display_name": "Iron rock",
+                    "skill_id": "mining",
+                    "required_level": 15,
+                    "xp_reward": 35,
+                    "item_reward": "iron_ore",
+                    "quantity_reward": 1,
+                    "position": [3, 1],
+                    "blocks_movement": True,
+                    "depleted_state": "depleted_rock",
+                    "respawn_seconds": 30,
+                    "base_gather_seconds": 2.8,
+                },
+                {
+                    "node_id": "mithril_rock_01",
+                    "node_type": "mithril_rock",
+                    "display_name": "Mithril rock",
+                    "skill_id": "mining",
+                    "required_level": 55,
+                    "xp_reward": 80,
+                    "item_reward": "mithril_ore",
+                    "quantity_reward": 1,
+                    "position": [4, 1],
+                    "blocks_movement": True,
+                    "depleted_state": "depleted_rock",
+                    "respawn_seconds": 30,
+                    "base_gather_seconds": 4.1,
+                },
+                {
+                    "node_id": "starsteel_rock_01",
+                    "node_type": "starsteel_rock",
+                    "display_name": "Starsteel rock",
+                    "skill_id": "mining",
+                    "required_level": 85,
+                    "xp_reward": 200,
+                    "item_reward": "starsteel_ore",
+                    "quantity_reward": 1,
+                    "position": [5, 1],
+                    "blocks_movement": True,
+                    "depleted_state": "depleted_rock",
+                    "respawn_seconds": 30,
+                    "base_gather_seconds": 6.5,
                 }
             ],
         }
@@ -125,8 +206,38 @@ def test_ore_node_exposes_material_color_and_depleted_state() -> None:
     rock = world.get_object("copper_rock_01")
     assert rock is not None and rock.node is not None
     vein = rock.node.find("**/copper_rock_01_ore_vein_primary")
+    core = rock.node.find("**/copper_rock_01_stone_slab_core")
     assert vein.isEmpty() is False
     assert vein.getTag("resource_color") == "0.76,0.35,0.15,1.00"
+    assert core.getTag("resource_color") == "0.56,0.20,0.08,1.00"
+
+    tin_rock = world.get_object("tin_rock_01")
+    assert tin_rock is not None and tin_rock.node is not None
+    tin_vein = tin_rock.node.find("**/tin_rock_01_ore_vein_primary")
+    tin_core = tin_rock.node.find("**/tin_rock_01_stone_slab_core")
+    assert tin_vein.getTag("resource_color") == "0.60,0.62,0.60,1.00"
+    assert tin_core.getTag("resource_color") == "0.42,0.44,0.43,1.00"
+
+    iron_rock = world.get_object("iron_rock_01")
+    assert iron_rock is not None and iron_rock.node is not None
+    iron_vein = iron_rock.node.find("**/iron_rock_01_ore_vein_primary")
+    iron_core = iron_rock.node.find("**/iron_rock_01_stone_slab_core")
+    assert iron_vein.getTag("resource_color") == "0.58,0.32,0.15,1.00"
+    assert iron_core.getTag("resource_color") == "0.38,0.22,0.12,1.00"
+
+    mithril_rock = world.get_object("mithril_rock_01")
+    assert mithril_rock is not None and mithril_rock.node is not None
+    mithril_vein = mithril_rock.node.find("**/mithril_rock_01_ore_vein_primary")
+    mithril_core = mithril_rock.node.find("**/mithril_rock_01_stone_slab_core")
+    assert mithril_vein.getTag("resource_color") == "0.08,0.34,0.78,1.00"
+    assert mithril_core.getTag("resource_color") == "0.04,0.14,0.34,1.00"
+
+    starsteel_rock = world.get_object("starsteel_rock_01")
+    assert starsteel_rock is not None and starsteel_rock.node is not None
+    starsteel_vein = starsteel_rock.node.find("**/starsteel_rock_01_ore_vein_primary")
+    starsteel_core = starsteel_rock.node.find("**/starsteel_rock_01_stone_slab_core")
+    assert starsteel_vein.getTag("resource_color") == "0.46,0.74,1.00,1.00"
+    assert starsteel_core.getTag("resource_color") == "0.28,0.56,0.78,1.00"
 
     world.apply_resource_states({"copper_rock_01": ResourceNodeState(depleted=True, respawn_at=200.0)})
 

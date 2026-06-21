@@ -4,7 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from direct.gui.DirectGui import DGG, DirectButton, DirectFrame
+from direct.gui.DirectGui import DGG, DirectButton, DirectEntry, DirectFrame
 from direct.gui.OnscreenText import OnscreenText
 from panda3d.core import TextNode
 
@@ -54,6 +54,11 @@ IconSpec = tuple[
     tuple[float, float, float, float],
     tuple[float, float, float],
     tuple[float, float, float, float],
+] | tuple[
+    tuple[float, float, float, float],
+    tuple[float, float, float],
+    tuple[float, float, float, float],
+    float,
 ]
 DEFAULT_SKILL_IDS = (
     "woodcutting",
@@ -97,6 +102,7 @@ class Hud:
         on_sell_all: Callable[[], None] | None = None,
         on_select_item: Callable[[str], None] | None = None,
         on_unequip_slot: Callable[[str], None] | None = None,
+        on_combat_style: Callable[[str], None] | None = None,
         on_save: Callable[[], None] | None = None,
         on_load: Callable[[], None] | None = None,
         on_quit: Callable[[], None] | None = None,
@@ -114,6 +120,7 @@ class Hud:
         self.on_sell_all = on_sell_all or (lambda: None)
         self.on_select_item = on_select_item or (lambda _item_id: None)
         self.on_unequip_slot = on_unequip_slot or (lambda _slot: None)
+        self.on_combat_style = on_combat_style or (lambda _style: None)
         self.on_save = on_save or (lambda: None)
         self.on_load = on_load or (lambda: None)
         self.on_quit = on_quit or (lambda: None)
@@ -128,6 +135,9 @@ class Hud:
         self.quest_objective_text = ""
         self.quest_objective_completed = False
         self.quantity_mode = "all"
+        self.shop_tab = "buy"
+        self.shop_selected_row_id = ""
+        self.shop_amount_context: tuple[str, str] | None = None
         self.chat_messages: list[str] = []
         self.chat_scroll = 0
         self.context_buttons: list[DirectButton] = []
@@ -177,6 +187,7 @@ class Hud:
         self.tab_frames: dict[str, DirectFrame] = {}
         self.inventory_slots: list[_InventorySlot] = []
         self.equipment_slots: dict[str, _EquipmentSlot] = {}
+        self.combat_style_buttons: dict[str, DirectButton] = {}
         self.skill_rows: dict[str, _SkillRow] = {}
         self._build_side_tabs()
         self.select_tab(INVENTORY_TAB)
@@ -195,16 +206,30 @@ class Hud:
         self.bank_panel.hide()
 
         self.shop_panel = _panel((-0.76, 0.76, -0.56, 0.50), (0.0, 0, 0.04), PANEL)
-        _text(self.shop_panel, "General Store", (0.0, 0.43), 0.042, TextNode.ACenter, GOLD)
+        _text(self.shop_panel, "General Store", (0.0, 0.43), 0.046, TextNode.ACenter, GOLD)
         _button(self.shop_panel, "Close", (0.58, 0, 0.42), 0.036, self.on_shop_close)
-        _button(self.shop_panel, "Sell all", (-0.58, 0, 0.42), 0.030, self.on_sell_all)
-        self._build_quantity_buttons(self.shop_panel, (-0.28, 0.42))
-        self.shop_coin_label = _text(self.shop_panel, "", (0.0, 0.365), 0.024, TextNode.ACenter, GOLD, True)
-        _text(self.shop_panel, "Item", (-0.68, 0.34), 0.022, TextNode.ALeft, GOLD)
-        _text(self.shop_panel, "Owned", (0.20, 0.34), 0.022, TextNode.ACenter, GOLD)
-        _text(self.shop_panel, "Price", (0.36, 0.34), 0.022, TextNode.ACenter, GOLD)
-        self.empty_shop_label = _text(self.shop_panel, "No stock available", (0.0, 0.12), 0.030, TextNode.ACenter, MUTED_TEXT)
+        self.shop_buy_tab = _button(self.shop_panel, "Buy", (-0.58, 0, 0.42), 0.033, lambda: self.select_shop_tab("buy"))
+        self.shop_sell_tab = _button(self.shop_panel, "Sell", (-0.45, 0, 0.42), 0.033, lambda: self.select_shop_tab("sell"))
+        self.shop_coin_label = _text(self.shop_panel, "", (0.0, 0.365), 0.028, TextNode.ACenter, GOLD, True)
+        _text(self.shop_panel, "Item", (-0.52, 0.31), 0.028, TextNode.ALeft, GOLD)
+        _text(self.shop_panel, "Price", (0.48, 0.31), 0.028, TextNode.ARight, GOLD)
+        self.empty_shop_label = _text(self.shop_panel, "No stock available", (0.0, 0.12), 0.030, TextNode.ACenter, MUTED_TEXT, True)
         self.shop_rows: dict[str, _ShopRow] = {}
+        self.shop_amount_panel = _panel((-0.28, 0.28, -0.12, 0.12), (0.0, 0, 0.02), PANEL_DARK)
+        self.shop_amount_title = _text(self.shop_amount_panel, "", (0.0, 0.055), 0.030, TextNode.ACenter, GOLD, True)
+        self.shop_amount_entry = DirectEntry(
+            parent=self.shop_amount_panel,
+            initialText="",
+            width=8,
+            scale=0.040,
+            pos=(-0.13, 0, -0.018),
+            frameColor=SLOT,
+            text_fg=TEXT,
+            command=self._submit_shop_amount,
+        )
+        _button(self.shop_amount_panel, "Ok", (0.16, 0, -0.018), 0.030, self._submit_shop_amount)
+        _button(self.shop_amount_panel, "Cancel", (0.0, 0, -0.080), 0.026, self._close_shop_amount_prompt)
+        self.shop_amount_panel.hide()
         self.shop_panel.hide()
 
         self.context_panel = _panel((-0.17, 0.17, -0.30, 0.03), (0.0, 0, 0.0), PANEL_DARK)
@@ -219,6 +244,7 @@ class Hud:
         bank: dict[str, int],
         skills: Any,
         equipment: dict[str, str] | None = None,
+        combat_style: str = "attack",
         selected_text: str = "",
         selected_item_id: str | None = None,
         shop_stock: list[dict[str, object]] | None = None,
@@ -228,9 +254,11 @@ class Hud:
     ) -> None:
         if shop_stock is not None:
             self.shop_stock = list(shop_stock)
+        self._last_inventory = dict(inventory)
         self.stats.setText(f"Account: {account}")
         self._sync_inventory_slots(inventory, selected_item_id)
         self._sync_equipment_slots(equipment or {})
+        self._sync_combat_style(combat_style)
         self._sync_skill_labels(skills)
 
         self._sync_bank_rows(inventory, bank)
@@ -312,12 +340,28 @@ class Hud:
         self.bank_panel.hide()
 
     def open_shop(self) -> None:
+        self.quantity_mode = "1"
+        self.shop_tab = "buy"
+        self.shop_selected_row_id = ""
+        self._close_shop_amount_prompt()
+        self._sync_shop_tabs()
         self.shop_is_open = True
         self.shop_panel.show()
 
     def close_shop(self) -> None:
         self.shop_is_open = False
+        self._close_shop_amount_prompt()
         self.shop_panel.hide()
+
+    def select_shop_tab(self, tab_id: str) -> None:
+        if tab_id not in {"buy", "sell"}:
+            return
+        self.shop_tab = tab_id
+        self.shop_selected_row_id = ""
+        self.hide_context_menu()
+        self._close_shop_amount_prompt()
+        self._sync_shop_tabs()
+        self._sync_shop_rows(getattr(self, "_last_inventory", {}), self.shop_stock)
 
     def show_context_menu(
         self,
@@ -473,6 +517,21 @@ class Hud:
             equipment_slot = _EquipmentSlot(button=button, icon=_SlotIcon.create(button), empty_label=label)
             equipment_slot.clear()
             self.equipment_slots[slot_id] = equipment_slot
+        self._build_combat_style_buttons(parent)
+
+    def _build_combat_style_buttons(self, parent: DirectFrame) -> None:
+        for style, label, x in (
+            ("attack", "Attack", -0.135),
+            ("strength", "Strength", 0.0),
+            ("defence", "Defence", 0.135),
+        ):
+            self.combat_style_buttons[style] = _button(
+                parent,
+                label,
+                (x, 0, -0.840),
+                0.020,
+                lambda style=style: self.on_combat_style(style),
+            )
 
     def _build_skills_tab(self, parent: DirectFrame) -> None:
         for index, skill_id in enumerate(self.skill_ids):
@@ -528,6 +587,18 @@ class Hud:
                 slot.set_item(self.items_data, item_id)
             else:
                 slot.clear()
+
+    def _sync_combat_style(self, combat_style: str) -> None:
+        active_style = combat_style if combat_style in self.combat_style_buttons else "attack"
+        for style, button in self.combat_style_buttons.items():
+            active = style == active_style
+            button["frameColor"] = (
+                SLOT_HILITE if active else BUTTON,
+                BUTTON_HOVER,
+                BUTTON_HOVER,
+                SLOT_HILITE if active else BUTTON,
+            )
+            button["text_fg"] = TEXT if active else MUTED_TEXT
 
     def _sync_skill_labels(self, skills: Any) -> None:
         for skill_id, row in self.skill_rows.items():
@@ -608,6 +679,7 @@ class Hud:
 
     def _sync_shop_rows(self, inventory: dict[str, int], shop_stock: list[dict[str, object]]) -> None:
         self.shop_coin_label.setText(f"Coins: {inventory.get(COINS_ITEM_ID, 0)}")
+        self._sync_shop_tabs()
         stock_prices = _stock_prices(shop_stock)
         buy_item_ids = sorted(stock_prices, key=lambda item_id: (_category_sort_key(self.items_data, item_id), item_id))
         sell_item_ids = [
@@ -615,8 +687,10 @@ class Hud:
             for item_id in _sellable_item_ids(self.items_data, inventory)
             if item_id not in stock_prices and item_id != COINS_ITEM_ID
         ]
-        visible_rows = [(item_id, item_id, "buy") for item_id in buy_item_ids]
-        visible_rows.extend((f"sell:{item_id}", item_id, "sell") for item_id in sell_item_ids)
+        if self.shop_tab == "sell":
+            visible_rows = [(f"sell:{item_id}", item_id, "sell") for item_id in sell_item_ids]
+        else:
+            visible_rows = [(item_id, item_id, "buy") for item_id in buy_item_ids]
         visible_row_ids = {row_id for row_id, _item_id, _mode in visible_rows}
 
         for item_id in list(self.shop_rows):
@@ -627,33 +701,121 @@ class Hud:
             self.empty_shop_label.hide()
         else:
             self.empty_shop_label.show()
+            self.empty_shop_label.setText("Nothing to sell" if self.shop_tab == "sell" else "No stock available")
 
         for index, (row_id, item_id, mode) in enumerate(visible_rows):
-            y = 0.27 - index * 0.052
+            y = 0.235 - index * 0.074
             row = self.shop_rows.get(row_id)
             if row is None:
-                action_text = "Buy" if mode == "buy" else "Sell"
-                command = (
-                    (lambda item_id=item_id: self.on_buy_item(item_id))
-                    if mode == "buy"
-                    else (lambda item_id=item_id: self.on_sell_item(item_id))
+                item_button = _shop_icon_button(
+                    self.shop_panel,
+                    (-0.60, 0, y + 0.006),
+                    lambda row_id=row_id, item_id=item_id, mode=mode: self._select_shop_row(row_id, item_id, mode),
+                    size=0.046,
+                )
+                item_button.bind(
+                    DGG.B3PRESS,
+                    lambda _event=None, row_id=row_id, item_id=item_id, mode=mode: self._show_shop_context(row_id, item_id, mode),
                 )
                 row = _ShopRow(
-                    item_label=_text(self.shop_panel, _item_name(self.items_data, item_id), (-0.68, y), ROW_TEXT_SCALE, TextNode.ALeft, TEXT, True),
-                    quantity_label=_text(self.shop_panel, "", (0.20, y), ROW_TEXT_SCALE, TextNode.ACenter, TEXT, True),
-                    price_label=_text(self.shop_panel, "", (0.36, y), ROW_TEXT_SCALE, TextNode.ACenter, TEXT, True),
-                    action_button=_button(
-                        self.shop_panel,
-                        action_text,
-                        (0.58, 0, y + 0.004),
-                        ROW_BUTTON_TEXT_SCALE,
-                        command,
-                    ),
+                    row_id=row_id,
+                    mode=mode,
+                    item_button=item_button,
+                    icon=_SlotIcon.create(item_button),
+                    item_label=_text(self.shop_panel, _item_name(self.items_data, item_id), (-0.52, y), 0.030, TextNode.ALeft, TEXT, True),
+                    quantity_label=_text(self.shop_panel, "", (-0.645, y - 0.030), 0.020, TextNode.ACenter, GOLD, True),
+                    price_label=_text(self.shop_panel, "", (0.48, y), 0.030, TextNode.ARight, TEXT, True),
                 )
                 self.shop_rows[row_id] = row
+            row.icon.set_item(self.items_data, item_id)
+            row.mode = mode
             row.set_pos(y)
+            row.set_selected(row_id == self.shop_selected_row_id)
             row.quantity_label.setText(str(inventory.get(item_id, 0)))
+            if mode == "buy":
+                row.quantity_label.hide()
+            else:
+                row.quantity_label.show()
             row.price_label.setText(str(stock_prices[item_id] if mode == "buy" else _sell_price(self.items_data, item_id)))
+
+    def _sync_shop_tabs(self) -> None:
+        for tab_id, button in (("buy", self.shop_buy_tab), ("sell", self.shop_sell_tab)):
+            active = self.shop_tab == tab_id
+            button["frameColor"] = (
+                SLOT_HILITE if active else BUTTON,
+                BUTTON_HOVER,
+                BUTTON_HOVER,
+                SLOT_HILITE if active else BUTTON,
+            )
+            button["text_fg"] = TEXT if active else MUTED_TEXT
+
+    def _select_shop_row(self, row_id: str, item_id: str, mode: str) -> None:
+        self.shop_selected_row_id = row_id
+        verb = "Right-click to buy" if mode == "buy" else "Right-click to sell"
+        self.set_ui_hover_text(f"{verb} {_item_name(self.items_data, item_id)}")
+        for candidate_id, row in self.shop_rows.items():
+            row.set_selected(candidate_id == row_id)
+
+    def _show_shop_context(self, row_id: str, item_id: str, mode: str) -> None:
+        self._select_shop_row(row_id, item_id, mode)
+        verb = "Buy" if mode == "buy" else "Sell"
+        actions = [
+            ("1", f"{verb} 1 {_item_name(self.items_data, item_id)}"),
+            ("5", f"{verb} 5 {_item_name(self.items_data, item_id)}"),
+            ("10", f"{verb} 10 {_item_name(self.items_data, item_id)}"),
+            ("x", f"{verb} X {_item_name(self.items_data, item_id)}"),
+            ("all", f"{verb} All {_item_name(self.items_data, item_id)}"),
+        ]
+        self.show_context_menu(
+            actions,
+            lambda action_id: self._choose_shop_quantity(mode, item_id, action_id),
+            pos=(-0.48, 0, 0.24),
+        )
+
+    def _choose_shop_quantity(self, mode: str, item_id: str, action_id: str) -> None:
+        if action_id == "x":
+            self._open_shop_amount_prompt(mode, item_id)
+            return
+        self.quantity_mode = "all" if action_id == "all" else action_id
+        if mode == "buy":
+            self.on_buy_item(item_id)
+        else:
+            self.on_sell_item(item_id)
+
+    def _open_shop_amount_prompt(self, mode: str, item_id: str) -> None:
+        self.shop_amount_context = (mode, item_id)
+        verb = "Buy" if mode == "buy" else "Sell"
+        self.shop_amount_title.setText(f"{verb} how many?")
+        self.shop_amount_entry["text"] = ""
+        self.shop_amount_panel.show()
+
+    def _close_shop_amount_prompt(self) -> None:
+        self.shop_amount_context = None
+        if hasattr(self, "shop_amount_panel"):
+            self.shop_amount_panel.hide()
+
+    def _submit_shop_amount(self, value: str | None = None) -> None:
+        if self.shop_amount_context is None:
+            return
+        raw_value = value
+        if raw_value is None:
+            get_value = getattr(self.shop_amount_entry, "get", None)
+            raw_value = str(get_value()) if callable(get_value) else str(getattr(self.shop_amount_entry, "text", ""))
+        try:
+            quantity = int(str(raw_value).strip())
+        except ValueError:
+            quantity = 0
+        if quantity <= 0:
+            self.set_feedback("Enter a positive quantity")
+            self._close_shop_amount_prompt()
+            return
+        mode, item_id = self.shop_amount_context
+        self.quantity_mode = str(quantity)
+        self._close_shop_amount_prompt()
+        if mode == "buy":
+            self.on_buy_item(item_id)
+        else:
+            self.on_sell_item(item_id)
 
     def _sync_progress(self, gather_progress: float | None) -> None:
         if gather_progress is None:
@@ -739,7 +901,7 @@ class _SlotIcon:
         icon = cls(
             parts=[
                 _icon_frame((0.0, 0.0, 0.0, 0.0), (0.0, 0, 0.0), UI.TRANSPARENT, parent)
-                for _ in range(5)
+                for _ in range(12)
             ],
             label=_icon_label(parent),
         )
@@ -748,23 +910,37 @@ class _SlotIcon:
 
     def set_item(self, items_data: dict[str, dict[str, object]], item_id: str) -> None:
         specs = _item_icon_specs(items_data, item_id)
-        self.label.setText(_item_icon_label(items_data, item_id))
-        self.label.show()
+        label = _item_icon_label(items_data, item_id)
+        self.label.setText(label)
+        if label:
+            self.label.show()
+        else:
+            self.label.hide()
         for index, part in enumerate(self.parts):
             if index < len(specs):
-                frame_size, pos, color = specs[index]
+                spec = specs[index]
+                frame_size, pos, color = spec[:3]
+                roll = float(spec[3]) if len(spec) > 3 else 0.0
                 part["frameSize"] = frame_size
                 part["pos"] = pos
                 part["frameColor"] = color
+                _set_widget_roll(part, roll)
                 part.show()
             else:
+                _set_widget_roll(part, 0.0)
                 part.hide()
 
     def clear(self) -> None:
         for part in self.parts:
+            _set_widget_roll(part, 0.0)
             part.hide()
         self.label.setText("")
         self.label.hide()
+
+    def destroy(self) -> None:
+        for part in self.parts:
+            part.destroy()
+        self.label.destroy()
 
 
 @dataclass
@@ -818,22 +994,31 @@ class _BankRow:
 
 @dataclass
 class _ShopRow:
+    row_id: str
+    mode: str
+    item_button: DirectButton
+    icon: "_SlotIcon"
     item_label: OnscreenText
     quantity_label: OnscreenText
     price_label: OnscreenText
-    action_button: DirectButton
 
     def set_pos(self, y: float) -> None:
-        self.item_label.setPos(-0.68, y)
-        self.quantity_label.setPos(0.20, y)
-        self.price_label.setPos(0.36, y)
-        self.action_button.setPos(0.58, 0, y + 0.004)
+        self.item_button.setPos(-0.60, 0, y + 0.006)
+        self.item_label.setPos(-0.52, y)
+        self.quantity_label.setPos(-0.645, y - 0.030)
+        self.price_label.setPos(0.48, y)
+
+    def set_selected(self, selected: bool) -> None:
+        base = SLOT_HILITE if selected else SLOT
+        hover = SLOT_HILITE if selected else BUTTON_HOVER
+        self.item_button["frameColor"] = (base, hover, hover, base)
 
     def destroy(self) -> None:
+        self.icon.destroy()
+        self.item_button.destroy()
         self.item_label.destroy()
         self.quantity_label.destroy()
         self.price_label.destroy()
-        self.action_button.destroy()
 
 
 def _mouse_point(mouse_pos: object | None) -> tuple[float, float] | None:
@@ -908,6 +1093,17 @@ def _widget_hidden(widget: object) -> bool:
         return True
     is_hidden = getattr(widget, "isHidden", None)
     return bool(is_hidden()) if callable(is_hidden) else False
+
+
+def _set_widget_roll(widget: object, roll: float) -> None:
+    set_r = getattr(widget, "setR", None)
+    if callable(set_r):
+        set_r(roll)
+        return
+    try:
+        widget["roll"] = roll  # type: ignore[index]
+    except Exception:
+        pass
 
 
 def _frame(
@@ -1000,6 +1196,23 @@ def _slot_button(parent: Any, pos: tuple[float, float, float], command: Callable
     )
 
 
+def _shop_icon_button(
+    parent: Any,
+    pos: tuple[float, float, float],
+    command: Callable[[], None],
+    *,
+    size: float = 0.034,
+) -> DirectButton:
+    return DirectButton(
+        parent=parent,
+        pos=pos,
+        frameSize=(-size, size, -size, size),
+        frameColor=(SLOT, BUTTON_HOVER, BUTTON_HOVER, SLOT),
+        text="",
+        command=command,
+    )
+
+
 def _text(
     parent: Any,
     text: str,
@@ -1054,31 +1267,7 @@ def _item_icon_label(items_data: dict[str, dict[str, object]], item_id: str) -> 
 
     if category == "currency":
         return "$"
-    if category == "tool":
-        if tool_for == "woodcutting" or "axe" in item_id:
-            return "AXE"
-        if tool_for == "mining" or "pickaxe" in item_id:
-            return "PICK"
-        if "rod" in item_id:
-            return "ROD"
-        if "net" in item_id:
-            return "NET"
-        if tool_for == "cooking" or "pot" in item_id:
-            return "POT"
-        return "TOOL"
-    if category == "weapon":
-        return "SWD"
-    if category == "armor":
-        return "SHD"
-    if category == "wood":
-        return "LOG"
-    if category == "ore":
-        return "ORE"
-    if category == "bar":
-        return "BAR"
-    if category == "fish":
-        return "FISH"
-    return _abbreviated_item_label(name)
+    return ""
 
 
 def _abbreviated_item_label(name: str) -> str:
@@ -1134,45 +1323,70 @@ def _coin_icon_specs() -> list[IconSpec]:
 
 def _tool_icon_specs(item_id: str) -> list[IconSpec]:
     wood = (0.54, 0.30, 0.12, 1.0)
-    metal = _metal_color(item_id)
-    dark_metal = _metal_shadow_color(item_id)
-    if "fishing" in item_id:
+    metal, dark_metal, light_metal = _metal_palette(item_id)
+    if "net" in item_id:
         return [
-            ((-0.004, 0.004, -0.025, 0.026), (-0.005, 0, 0.011), wood),
-            ((-0.012, 0.012, -0.003, 0.003), (0.010, 0, 0.032), metal),
-            ((-0.006, 0.006, -0.003, 0.003), (0.020, 0, -0.013), (0.70, 0.82, 0.88, 1.0)),
+            ((-0.004, 0.004, -0.028, 0.028), (-0.015, 0, -0.006), wood, -34),
+            ((-0.026, 0.026, -0.004, 0.004), (0.010, 0, 0.024), metal, 24),
+            ((-0.020, 0.020, -0.004, 0.004), (0.010, 0, 0.024), light_metal, -24),
+            ((-0.016, 0.016, -0.002, 0.002), (0.010, 0, 0.024), (0.78, 0.86, 0.84, 0.85), 0),
+            ((-0.002, 0.002, -0.018, 0.018), (0.010, 0, 0.024), (0.78, 0.86, 0.84, 0.85), 90),
+        ]
+    if "fishing" in item_id or "rod" in item_id:
+        return [
+            ((-0.004, 0.004, -0.034, 0.034), (-0.004, 0, 0.010), wood, -22),
+            ((-0.003, 0.003, -0.030, 0.020), (0.018, 0, 0.004), (0.82, 0.88, 0.86, 0.75), -10),
+            ((-0.008, 0.008, -0.003, 0.003), (0.024, 0, -0.021), metal, 0),
+            ((-0.010, 0.010, -0.002, 0.002), (0.014, 0, 0.041), light_metal, 0),
         ]
     if "pickaxe" in item_id:
         return [
-            ((-0.004, 0.004, -0.024, 0.024), (0.000, 0, 0.007), wood),
-            ((-0.030, 0.030, -0.006, 0.006), (0.000, 0, 0.028), metal),
-            ((-0.020, -0.008, -0.010, 0.010), (-0.008, 0, 0.022), dark_metal),
-            ((0.008, 0.020, -0.010, 0.010), (0.008, 0, 0.022), dark_metal),
+            ((-0.004, 0.004, -0.032, 0.030), (0.000, 0, 0.004), wood, -26),
+            ((-0.034, 0.034, -0.005, 0.005), (0.000, 0, 0.032), metal, 0),
+            ((-0.035, -0.014, -0.004, 0.004), (-0.002, 0, 0.032), light_metal, -18),
+            ((0.014, 0.035, -0.004, 0.004), (0.002, 0, 0.032), dark_metal, 18),
+            ((-0.006, 0.006, -0.008, 0.008), (0.000, 0, 0.028), dark_metal, 0),
+        ]
+    if "pot" in item_id:
+        return [
+            ((-0.026, 0.026, -0.020, 0.020), (0.000, 0, 0.010), dark_metal),
+            ((-0.022, 0.022, -0.016, 0.018), (0.000, 0, 0.014), metal),
+            ((-0.030, 0.030, -0.004, 0.004), (0.000, 0, 0.034), light_metal),
+            ((-0.018, 0.018, -0.003, 0.003), (0.000, 0, 0.042), dark_metal),
+            ((-0.036, -0.026, -0.007, 0.007), (-0.002, 0, 0.018), dark_metal),
+            ((0.026, 0.036, -0.007, 0.007), (0.002, 0, 0.018), dark_metal),
         ]
     return [
-        ((-0.005, 0.005, -0.024, 0.026), (0.008, 0, 0.007), wood),
-        ((-0.030, 0.006, -0.014, 0.014), (-0.009, 0, 0.030), metal),
-        ((-0.026, -0.010, -0.008, 0.008), (-0.012, 0, 0.028), dark_metal),
+        ((-0.004, 0.004, -0.032, 0.030), (0.008, 0, 0.004), wood, -28),
+        ((-0.030, 0.006, -0.016, 0.016), (-0.012, 0, 0.030), metal, -12),
+        ((-0.032, -0.014, -0.010, 0.010), (-0.014, 0, 0.026), light_metal, -12),
+        ((-0.020, -0.006, -0.008, 0.008), (-0.010, 0, 0.036), dark_metal, -12),
+        ((-0.007, 0.007, -0.006, 0.006), (0.000, 0, 0.025), dark_metal),
     ]
 
 
 def _weapon_icon_specs(item_id: str) -> list[IconSpec]:
-    metal = _metal_color(item_id)
+    metal, dark_metal, light_metal = _metal_palette(item_id)
     return [
-        ((-0.007, 0.007, -0.024, 0.025), (0.000, 0, 0.016), metal),
-        ((-0.018, 0.018, -0.004, 0.004), (0.000, 0, -0.004), (0.62, 0.42, 0.17, 1.0)),
-        ((-0.005, 0.005, -0.014, 0.006), (0.000, 0, -0.019), (0.36, 0.20, 0.08, 1.0)),
-        ((-0.003, 0.003, -0.004, 0.006), (0.000, 0, 0.043), (0.95, 0.91, 0.76, 1.0)),
+        ((-0.007, 0.007, -0.034, 0.034), (0.006, 0, 0.014), metal, -34),
+        ((-0.003, 0.003, -0.030, 0.026), (0.001, 0, 0.018), light_metal, -34),
+        ((-0.018, 0.018, -0.004, 0.004), (-0.010, 0, -0.010), (0.62, 0.42, 0.17, 1.0), -34),
+        ((-0.005, 0.005, -0.018, 0.008), (-0.018, 0, -0.025), (0.36, 0.20, 0.08, 1.0), -34),
+        ((-0.006, 0.006, -0.004, 0.006), (0.025, 0, 0.048), light_metal, -34),
+        ((-0.006, 0.006, -0.012, 0.012), (-0.026, 0, -0.037), dark_metal, -34),
     ]
 
 
 def _shield_icon_specs(item_id: str) -> list[IconSpec]:
-    metal = _metal_color(item_id)
+    metal, dark_metal, light_metal = _metal_palette(item_id)
     return [
-        ((-0.027, 0.027, -0.025, 0.025), (0.000, 0, 0.014), (0.20, 0.13, 0.07, 1.0)),
-        ((-0.022, 0.022, -0.022, 0.022), (0.000, 0, 0.016), metal),
-        ((-0.004, 0.004, -0.020, 0.020), (0.000, 0, 0.016), (0.95, 0.77, 0.32, 1.0)),
-        ((-0.016, 0.016, -0.004, 0.004), (0.000, 0, 0.018), (0.95, 0.77, 0.32, 1.0)),
+        ((-0.030, 0.030, -0.027, 0.024), (0.000, 0, 0.014), dark_metal),
+        ((-0.024, 0.024, -0.026, 0.022), (0.000, 0, 0.017), metal),
+        ((-0.016, 0.016, -0.020, 0.018), (0.000, 0, 0.012), light_metal),
+        ((-0.004, 0.004, -0.024, 0.022), (0.000, 0, 0.016), dark_metal),
+        ((-0.020, 0.020, -0.004, 0.004), (0.000, 0, 0.016), dark_metal),
+        ((-0.010, 0.010, -0.010, 0.010), (0.000, 0, 0.018), (0.95, 0.77, 0.32, 1.0)),
+        ((-0.018, 0.000, -0.003, 0.003), (-0.006, 0, 0.034), (1.0, 0.90, 0.48, 0.65), -18),
     ]
 
 
@@ -1196,11 +1410,12 @@ def _wood_icon_specs(item_id: str) -> list[IconSpec]:
 def _ore_icon_specs(item_id: str) -> list[IconSpec]:
     color = {
         "copper_ore": (0.76, 0.36, 0.16, 1.0),
-        "iron_ore": (0.72, 0.62, 0.48, 1.0),
+        "tin_ore": (0.62, 0.64, 0.62, 1.0),
+        "iron_ore": (0.58, 0.32, 0.15, 1.0),
         "coal": (0.07, 0.07, 0.08, 1.0),
-        "mithril_ore": (0.18, 0.60, 0.68, 1.0),
+        "mithril_ore": (0.08, 0.34, 0.78, 1.0),
         "adamant_ore": (0.24, 0.68, 0.30, 1.0),
-        "starsteel_ore": (0.35, 0.68, 0.92, 1.0),
+        "starsteel_ore": (0.46, 0.74, 1.0, 1.0),
     }.get(item_id, (0.52, 0.52, 0.48, 1.0))
     return [
         ((-0.026, 0.020, -0.020, 0.018), (-0.002, 0, 0.015), (0.18, 0.17, 0.15, 1.0)),
@@ -1211,11 +1426,12 @@ def _ore_icon_specs(item_id: str) -> list[IconSpec]:
 
 
 def _bar_icon_specs(item_id: str) -> list[IconSpec]:
-    color = _metal_color(item_id.replace("_bar", "_sword"))
+    color, dark, light = _metal_palette(item_id.replace("_bar", "_sword"))
     return [
-        ((-0.028, 0.028, -0.015, 0.015), (0.000, 0, 0.014), (0.16, 0.15, 0.14, 1.0)),
-        ((-0.024, 0.024, -0.010, 0.010), (0.000, 0, 0.017), color),
-        ((-0.016, 0.016, -0.003, 0.003), (0.000, 0, 0.024), (0.95, 0.88, 0.62, 0.55)),
+        ((-0.030, 0.030, -0.016, 0.016), (0.000, 0, 0.014), dark, -8),
+        ((-0.025, 0.025, -0.011, 0.011), (0.000, 0, 0.018), color, -8),
+        ((-0.018, 0.018, -0.003, 0.003), (0.002, 0, 0.026), light, -8),
+        ((-0.020, 0.020, -0.002, 0.002), (-0.002, 0, 0.007), (0.08, 0.06, 0.04, 0.35), -8),
     ]
 
 
@@ -1241,23 +1457,25 @@ def _generic_icon_specs() -> list[IconSpec]:
 
 
 def _metal_color(item_id: str) -> tuple[float, float, float, float]:
-    if item_id.startswith("iron"):
-        return (0.72, 0.68, 0.58, 1.0)
-    if item_id.startswith("mithril"):
-        return (0.22, 0.62, 0.72, 1.0)
-    if item_id.startswith("starsteel"):
-        return (0.34, 0.68, 0.94, 1.0)
-    return (0.74, 0.46, 0.22, 1.0)
+    return _metal_palette(item_id)[0]
 
 
 def _metal_shadow_color(item_id: str) -> tuple[float, float, float, float]:
+    return _metal_palette(item_id)[1]
+
+
+def _metal_palette(item_id: str) -> tuple[
+    tuple[float, float, float, float],
+    tuple[float, float, float, float],
+    tuple[float, float, float, float],
+]:
     if item_id.startswith("iron"):
-        return (0.34, 0.34, 0.32, 1.0)
+        return (0.58, 0.32, 0.15, 1.0), (0.32, 0.18, 0.10, 1.0), (0.78, 0.48, 0.25, 1.0)
     if item_id.startswith("mithril"):
-        return (0.10, 0.32, 0.40, 1.0)
+        return (0.08, 0.34, 0.78, 1.0), (0.04, 0.14, 0.34, 1.0), (0.28, 0.58, 0.96, 1.0)
     if item_id.startswith("starsteel"):
-        return (0.12, 0.30, 0.52, 1.0)
-    return (0.42, 0.24, 0.10, 1.0)
+        return (0.46, 0.74, 1.0, 1.0), (0.20, 0.46, 0.70, 1.0), (0.76, 0.92, 1.0, 1.0)
+    return (0.74, 0.46, 0.22, 1.0), (0.42, 0.24, 0.10, 1.0), (0.96, 0.68, 0.34, 1.0)
 
 
 def _slot_word(word: str) -> str:

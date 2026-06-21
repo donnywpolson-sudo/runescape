@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from game.systems.inventory import Inventory
+from game.systems.inventory import INVENTORY_SLOT_LIMIT, Inventory, inventory_can_add
 
 
 @dataclass
 class Bank:
     items: dict[str, int] = field(default_factory=dict)
+    item_definitions: dict[str, dict[str, object]] = field(default_factory=dict)
+    slot_limit: int = INVENTORY_SLOT_LIMIT
 
     def deposit(self, inventory: Inventory, item_id: str, quantity: int | None = None) -> int:
         if quantity is None:
@@ -42,6 +44,14 @@ class Bank:
         _validate_quantity(amount)
         current = self.count(item_id)
         removed = min(current, amount)
+        while removed > 0 and not inventory_can_add(
+            inventory.to_dict(),
+            self.item_definitions,
+            item_id,
+            removed,
+            slot_limit=self.slot_limit,
+        ):
+            removed -= 1
         if not removed:
             return 0
 

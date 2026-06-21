@@ -245,6 +245,50 @@ def test_app_talk_to_npc_routes_data_defined_quest_and_rewards_once() -> None:
     assert updates == [True, True, True]
 
 
+def test_app_talk_to_npc_blocks_item_rewards_when_inventory_is_full() -> None:
+    quest = QuestSystem(_multi_quest_data())
+    feedback: list[str] = []
+    updates: list[bool] = []
+    app = SimpleNamespace(
+        quest=quest,
+        inventory=Inventory({"logs": 28}),
+        items_data={
+            "coins": {"category": "currency", "stackable": True},
+            "logs": {"category": "wood", "stackable": False},
+        },
+        skills=Skills(
+            {
+                "defence": {
+                    "display_name": "Defence",
+                    "starting_level": 1,
+                    "xp_thresholds": skill_xp_thresholds(),
+                }
+            }
+        ),
+        set_feedback=feedback.append,
+        _update_hud=lambda: updates.append(True),
+    )
+    app._apply_quest_rewards = lambda result: GameApp._apply_quest_rewards(app, result)
+    npc = SimpleNamespace(quest_id="trail_supplies", display_name="Trail Warden")
+
+    GameApp.talk_to_npc(app, npc)
+    quest.record("used_bank")
+    quest.record("used_shop")
+    GameApp.talk_to_npc(app, npc)
+
+    assert feedback[-1] == "Inventory is full"
+    assert app.inventory.to_dict() == {"logs": 28}
+    assert app.skills.xp("defence") == 0
+    assert updates == [True, True]
+
+    app.inventory.remove("logs", 1)
+    GameApp.talk_to_npc(app, npc)
+
+    assert feedback[-1] == "Quest complete: Trail supplies."
+    assert app.inventory.count(COINS_ITEM_ID) == 11
+    assert app.skills.xp("defence") == 12
+
+
 def test_shipped_field_provisions_quest_tracks_and_rewards_once() -> None:
     quest = QuestSystem(_load_data("quests.json"))
 

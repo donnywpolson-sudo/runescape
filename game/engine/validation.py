@@ -83,6 +83,10 @@ def validate_items(items: dict[str, Any]) -> list[ValidationIssue]:
                     "'category' must be one of: armor, bar, currency, fish, misc, ore, tool, weapon, wood",
                 )
             )
+        if "stackable" not in definition:
+            issues.append(ValidationIssue(source, "missing required boolean 'stackable'"))
+        elif not isinstance(definition.get("stackable"), bool):
+            issues.append(ValidationIssue(source, "'stackable' must be a boolean"))
         buy_price = definition.get("buy_price")
         if buy_price is not None and (not isinstance(buy_price, int) or buy_price <= 0):
             issues.append(ValidationIssue(source, "'buy_price' must be a positive integer"))

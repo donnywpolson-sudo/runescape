@@ -20,10 +20,11 @@ from game.engine.validation import validate_data_dir
 from game.entities.player import Player
 from game.systems.bank import Bank
 from game.systems.combat import CombatSystem
+from game.systems.combat_training import CombatTraining, DEFAULT_COMBAT_TRAINING_STYLE
 from game.systems.cooking import CookingSystem
 from game.systems.equipment import Equipment
 from game.systems.gathering import GatheringSystem, ResourceNodeState
-from game.systems.inventory import COINS_ITEM_ID, Inventory
+from game.systems.inventory import COINS_ITEM_ID, Inventory, inventory_can_transact
 from game.systems.interaction import InteractionManager
 from game.systems.quest import QuestSystem
 from game.systems.shop import Shop
@@ -102,7 +103,7 @@ class GameApp(ShowBase):
         self._apply_fixed_world_light()
 
         self.inventory = Inventory()
-        self.bank = Bank()
+        self.bank = Bank(item_definitions=self.items_data)
         self.skills = Skills(self.skills_data)
         self.equipment = Equipment(self.items_data, self.inventory, self.skills)
         self.gathering = GatheringSystem(
@@ -112,8 +113,17 @@ class GameApp(ShowBase):
             item_definitions=self.items_data,
         )
         self.cooking = CookingSystem(self.items_data, self.inventory, self.skills)
-        self.smithing = SmithingSystem(self.recipes_data, self.inventory, self.skills)
+        self.smithing = SmithingSystem(
+            self.recipes_data,
+            self.inventory,
+            self.skills,
+            item_definitions=self.items_data,
+        )
         self.combat = CombatSystem(self.world_map.mob_definitions, skills=self.skills)
+        self.combat_training = CombatTraining(
+            self.skills,
+            cooldown_seconds=settings.COMBAT_DUMMY_TRAIN_SECONDS,
+        )
         self.quest = QuestSystem(self.quests_data)
         self.shop = Shop(self.items_data, self.world_map.shop_stock)
         self.game_time = GameTime()
@@ -151,6 +161,7 @@ class GameApp(ShowBase):
             on_sell_all=self.sell_all_shop_items,
             on_select_item=self.select_inventory_item,
             on_unequip_slot=self.unequip_slot,
+            on_combat_style=self.set_combat_training_style,
             on_save=self.save_game,
             on_load=self.load_game,
             on_quit=self.userExit,
@@ -333,6 +344,7 @@ class GameApp(ShowBase):
             "inventory": self.inventory.to_dict(),
             "bank": self.bank.to_dict(),
             "equipment": self.equipment.to_dict(),
+            "combat_training_style": self.combat_training.style,
             "skills": self.skills.to_dict(),
             "combat": combat_state,
             "quest_state": quest_state,
@@ -358,11 +370,15 @@ class GameApp(ShowBase):
         self.player.load_dict(state.get("player", {}))
         self.inventory = Inventory.from_dict(state.get("inventory", {}))
         self.bank = Bank.from_dict(state.get("bank", {}))
+        self.bank.item_definitions = self.items_data
         self.skills.load_dict(state.get("skills", {}))
         self.equipment.inventory = self.inventory
         self.equipment.skills = self.skills
         self.equipment.load_dict(state.get("equipment", {}))
         self._sync_combat_bonuses()
+        self.combat_training.skills = self.skills
+        self.combat_training.set_style(str(state.get("combat_training_style") or DEFAULT_COMBAT_TRAINING_STYLE))
+        self.combat.set_training_style(self.combat_training.style)
         self.game_time.load_dict(state.get("time", world_state))
         self.game_camera.load_dict(state.get("camera", {}))
         resource_states = self._resource_states_from_save(state, world_state)
@@ -374,6 +390,7 @@ class GameApp(ShowBase):
         self.cooking.cancel_pending()
         self.smithing.inventory = self.inventory
         self.smithing.skills = self.skills
+        self.smithing.item_definitions = self.items_data
         self.smithing.cancel_pending()
         combat_state = self._combat_state_from_save(state, world_state)
         self.combat.skills = self.skills
@@ -425,6 +442,8 @@ class GameApp(ShowBase):
         if withdrawn:
             self.quest.record("used_bank")
             self.set_feedback(f"Withdrew {withdrawn} {self._item_name(item_id)}")
+        elif self.bank.count(item_id) > 0:
+            self.set_feedback("Inventory is full")
         else:
             self.set_feedback(f"No {self._item_name(item_id)} in bank")
         self._update_hud()
@@ -455,8 +474,13 @@ class GameApp(ShowBase):
     def buy_shop_item(self, item_id: str) -> None:
         stock_item = self.shop.stock.get(item_id)
         affordable = self.inventory.count(COINS_ITEM_ID) // stock_item.price if stock_item is not None else 0
-        quantity = self.hud.transaction_quantity(affordable)
-        result = self.shop.buy(self.inventory, item_id, quantity) if quantity else self.shop.buy(self.inventory, item_id, 1)
+        max_quantity = self._max_shop_buy_quantity(item_id, affordable)
+        quantity = self.hud.transaction_quantity(max_quantity)
+        if quantity <= 0:
+            self.set_feedback("Inventory is full" if affordable > 0 else f"Need {stock_item.price if stock_item is not None else 1} coins")
+            self._update_hud()
+            return
+        result = self.shop.buy(self.inventory, item_id, quantity)
         if result.success:
             self.quest.record("used_shop")
         self.set_feedback(result.feedback)
@@ -509,14 +533,31 @@ class GameApp(ShowBase):
         self._update_hud()
 
     def train_combat(self) -> None:
-        xp = 20
-        for skill_id in ("attack", "strength", "defence"):
-            self.skills.add_xp(skill_id, xp)
-        self.set_feedback("Trained combat: +20 attack XP, +20 strength XP, +20 defence XP")
+        result = self.combat_training.train()
+        self.set_feedback(result.feedback)
+        self._update_hud()
+
+    def set_combat_training_style(self, style: str) -> None:
+        selected = self.combat_training.set_style(style)
+        self.combat.set_training_style(selected)
+        self.set_feedback(f"Combat training style: {self.skills.display_name(selected)}")
         self._update_hud()
 
     def talk_to_npc(self, obj) -> None:
         if obj.quest_id:
+            rewards = self.quest.pending_completion_item_rewards(obj.quest_id)
+            if rewards:
+                additions: dict[str, int] = {}
+                for reward in rewards:
+                    additions[reward.item_id] = additions.get(reward.item_id, 0) + reward.quantity
+                if not inventory_can_transact(
+                    self.inventory.to_dict(),
+                    getattr(self, "items_data", {}),
+                    add=additions,
+                ):
+                    self.set_feedback("Inventory is full")
+                    self._update_hud()
+                    return
             result = self.quest.talk_to(obj.quest_id)
             if not result.feedback:
                 self.set_feedback(f"{obj.display_name}: Hello.")
@@ -567,6 +608,7 @@ class GameApp(ShowBase):
             inventory=self.inventory.to_dict(),
             bank=self.bank.to_dict(),
             equipment=self.equipment.to_dict(),
+            combat_style=self.combat_training.style,
             skills=self.skills,
             selected_text=self.selected_text,
             shop_stock=[stock_item.__dict__ for stock_item in self.shop.stock_items()],
@@ -578,6 +620,20 @@ class GameApp(ShowBase):
     def _add_coins(self, amount: int) -> None:
         if amount > 0:
             self.inventory.add(COINS_ITEM_ID, amount)
+
+    def _max_shop_buy_quantity(self, item_id: str, affordable: int) -> int:
+        stock_item = self.shop.stock.get(item_id)
+        if stock_item is None or affordable <= 0:
+            return 0
+        for quantity in range(affordable, 0, -1):
+            if inventory_can_transact(
+                self.inventory.to_dict(),
+                self.items_data,
+                remove={COINS_ITEM_ID: stock_item.price * quantity},
+                add={item_id: quantity},
+            ):
+                return quantity
+        return 0
 
     def _sync_combat_bonuses(self) -> None:
         equipment = self.equipment.to_dict()

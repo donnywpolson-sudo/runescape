@@ -34,6 +34,16 @@ def test_data_validation_missing_item_category() -> None:
     assert "'category' must be one of" in str(exc.value)
 
 
+def test_data_validation_requires_boolean_stackable() -> None:
+    items = _items()
+    items["logs"]["stackable"] = "no"
+
+    with pytest.raises(DataValidationError) as exc:
+        validate_all(items, _skills(), _world())
+
+    assert "'stackable' must be a boolean" in str(exc.value)
+
+
 def test_data_validation_incomplete_cooking_metadata() -> None:
     items = _items()
     items["raw_shrimp"].pop("base_cook_seconds")
@@ -280,6 +290,24 @@ def test_shipped_high_tier_content_uses_original_starsteel_ids() -> None:
     assert node["item_reward"] == "starsteel_ore"
 
 
+def test_shipped_world_has_no_non_useful_decorations() -> None:
+    world = _load_data("world.json")
+
+    assert world.get("decorations") == []
+
+
+def test_shipped_fishing_nodes_use_generic_spot_names() -> None:
+    world = _load_data("world.json")
+    fishing_nodes = [
+        node
+        for node in world["resource_nodes"]
+        if str(node["skill_id"]) == "fishing"
+    ]
+
+    assert fishing_nodes
+    assert {node["display_name"] for node in fishing_nodes} == {"Fishing spot"}
+
+
 def test_shipped_trail_supplies_quest_links_to_original_npc() -> None:
     items = _load_data("items.json")
     skills = _load_data("skills.json")
@@ -302,16 +330,17 @@ def test_shipped_trail_supplies_quest_links_to_original_npc() -> None:
 
 def _items() -> dict[str, dict[str, object]]:
     return {
-        "coins": {"name": "Coins", "category": "currency", "sell_price": 0},
-        "bronze_axe": {"name": "Bronze axe", "category": "tool", "sell_price": 8},
-        "logs": {"name": "Logs", "category": "wood", "sell_price": 3},
-        "copper_ore": {"name": "Copper ore", "category": "ore", "sell_price": 5},
-        "tin_ore": {"name": "Tin ore", "category": "ore", "sell_price": 5},
-        "bronze_bar": {"name": "Bronze bar", "category": "bar", "sell_price": 12},
+        "coins": {"name": "Coins", "category": "currency", "sell_price": 0, "stackable": True},
+        "bronze_axe": {"name": "Bronze axe", "category": "tool", "sell_price": 8, "stackable": False},
+        "logs": {"name": "Logs", "category": "wood", "sell_price": 3, "stackable": False},
+        "copper_ore": {"name": "Copper ore", "category": "ore", "sell_price": 5, "stackable": False},
+        "tin_ore": {"name": "Tin ore", "category": "ore", "sell_price": 5, "stackable": False},
+        "bronze_bar": {"name": "Bronze bar", "category": "bar", "sell_price": 12, "stackable": False},
         "bronze_sword": {
             "name": "Bronze sword",
             "category": "weapon",
             "sell_price": 18,
+            "stackable": False,
             "equip_slot": "weapon",
             "attack_bonus": 1,
             "strength_bonus": 1,
@@ -320,13 +349,19 @@ def _items() -> dict[str, dict[str, object]]:
             "name": "Raw shrimp",
             "category": "fish",
             "sell_price": 4,
+            "stackable": False,
             "cook_result": "cooked_shrimp",
             "cooking_required_level": 1,
             "cooking_xp": 30,
             "base_cook_seconds": 1.8,
         },
-        "cooked_shrimp": {"name": "Cooked shrimp", "category": "fish", "sell_price": 7},
-        "wooden_splinters": {"name": "Wooden splinters", "category": "misc", "sell_price": 1},
+        "cooked_shrimp": {"name": "Cooked shrimp", "category": "fish", "sell_price": 7, "stackable": False},
+        "wooden_splinters": {
+            "name": "Wooden splinters",
+            "category": "misc",
+            "sell_price": 1,
+            "stackable": False,
+        },
     }
 
 

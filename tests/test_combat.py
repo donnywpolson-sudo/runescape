@@ -78,10 +78,30 @@ def test_combat_damages_player_grants_xp_and_can_heal() -> None:
     assert result.feedback == "Hit Worn dummy: 2/3 HP left; Worn dummy hit you for 1; you: 9/10 HP"
     assert system.current_hitpoints == 9
     assert skills.xp("attack") == 4
+    assert skills.xp("strength") == 0
+    assert skills.xp("defence") == 0
     assert skills.xp("hitpoints") == 1
 
     assert system.heal(3) == 1
     assert system.current_hitpoints == 10
+
+
+def test_combat_training_style_controls_combat_xp() -> None:
+    clock = FakeClock()
+    skills = Skills(_skills())
+    system = CombatSystem([_mob(hitpoints=3, level=1)], skills=skills, time_provider=clock)
+    system.set_training_style("strength")
+    grid = TileGrid(5, 5)
+
+    system.start_attack("mob_01", (1, 2), grid, set())
+    clock.now += 1.0
+    result = system.update()
+
+    assert result is not None
+    assert skills.xp("attack") == 0
+    assert skills.xp("strength") == 4
+    assert skills.xp("defence") == 0
+    assert skills.xp("hitpoints") == 1
 
 
 def test_combat_reports_player_death() -> None:
