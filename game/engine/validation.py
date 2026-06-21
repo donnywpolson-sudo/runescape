@@ -3,9 +3,22 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 from pathlib import Path
+import re
 from typing import Any
 
 from game import settings
+
+def _protected_term_pattern(term: str) -> re.Pattern[str]:
+    return re.compile(rf"(?<![A-Za-z0-9]){re.escape(term)}(?![A-Za-z0-9])", re.IGNORECASE)
+
+
+_PROTECTED_CONTENT_PATTERNS = (
+    (_protected_term_pattern("runescape"), "RuneScape"),
+    (_protected_term_pattern("osrs"), "OSRS"),
+    (_protected_term_pattern("stardew"), "Stardew"),
+    (_protected_term_pattern("runite"), "runite"),
+    (_protected_term_pattern("rune"), "rune"),
+)
 
 
 @dataclass(frozen=True)
@@ -52,8 +65,26 @@ def validate_all(
         issues.extend(validate_recipes(recipes, items, skills))
     if quests is not None:
         issues.extend(validate_quests(quests, items, skills))
+    issues.extend(
+        validate_originality_terms(
+            {
+                "items.json": items,
+                "skills.json": skills,
+                "world.json": world,
+                **({"recipes.json": recipes} if recipes is not None else {}),
+                **({"quests.json": quests} if quests is not None else {}),
+            }
+        )
+    )
     if issues:
         raise DataValidationError(issues)
+
+
+def validate_originality_terms(sources: dict[str, Any]) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
+    for source, data in sources.items():
+        _validate_originality_value(data, source, issues)
+    return issues
 
 
 def validate_items(items: dict[str, Any]) -> list[ValidationIssue]:
@@ -839,6 +870,28 @@ def _quest_ids(quests: dict[str, Any] | None) -> set[str]:
         for quest in raw_quests
         if isinstance(quest, dict) and isinstance(quest.get("quest_id"), str) and quest.get("quest_id")
     }
+
+
+def _validate_originality_value(value: Any, source: str, issues: list[ValidationIssue]) -> None:
+    if isinstance(value, str):
+        for pattern, term in _PROTECTED_CONTENT_PATTERNS:
+            if pattern.search(value):
+                issues.append(
+                    ValidationIssue(source, f"contains protected or near-branded term '{term}'")
+                )
+        return
+
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_source = f"{source}:{key}" if source.endswith(".json") else f"{source}.{key}"
+            if isinstance(key, str):
+                _validate_originality_value(key, child_source, issues)
+            _validate_originality_value(child, child_source, issues)
+        return
+
+    if isinstance(value, list):
+        for index, child in enumerate(value):
+            _validate_originality_value(child, f"{source}[{index}]", issues)
 
 
 def _tile_set(

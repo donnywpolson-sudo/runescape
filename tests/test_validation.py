@@ -303,6 +303,23 @@ def test_data_validation_rejects_invalid_mob_combat_profile() -> None:
     assert "'attack_range' must be a positive integer" in message
 
 
+def test_data_validation_rejects_protected_terms_in_active_content() -> None:
+    items = _items()
+    items["runite_ore"] = {
+        "name": "Forbidden ore",
+        "category": "ore",
+        "sell_price": 1,
+        "stackable": False,
+    }
+
+    with pytest.raises(DataValidationError) as exc:
+        validate_all(items, _skills(), _world(), quests=_quests())
+
+    message = str(exc.value)
+    assert "items.json:runite_ore" in message
+    assert "contains protected or near-branded term 'runite'" in message
+
+
 def test_shipped_high_tier_content_uses_original_starsteel_ids() -> None:
     items = _load_data("items.json")
     recipes = _load_data("recipes.json")
