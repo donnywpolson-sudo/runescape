@@ -20,6 +20,21 @@ _PROTECTED_CONTENT_PATTERNS = (
     (_protected_term_pattern("rune"), "rune"),
 )
 
+ACTIVE_SKILL_IDS = {
+    "woodcutting",
+    "mining",
+    "fishing",
+    "cooking",
+    "attack",
+    "strength",
+    "defence",
+    "ranged",
+    "magic",
+    "hitpoints",
+    "smithing",
+}
+COMBAT_ATTACK_STYLE_SKILLS = {"ranged", "magic"}
+
 
 @dataclass(frozen=True)
 class ValidationIssue:
@@ -174,7 +189,7 @@ def validate_items(items: dict[str, Any]) -> list[ValidationIssue]:
 
 def validate_item_skill_refs(items: dict[str, Any], skills: dict[str, Any]) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
-    valid_skill_ids = set(skills) | {"attack", "strength", "defence", "ranged", "magic", "hitpoints", "smithing"}
+    valid_skill_ids = set(skills)
     for item_id, definition in items.items():
         if not isinstance(definition, dict):
             continue
@@ -260,7 +275,7 @@ def validate_quests(
         return [ValidationIssue("quests.json:quests", "must be a non-empty list")]
 
     seen_ids: set[str] = set()
-    valid_skill_ids = set(skills) | {"attack", "strength", "defence", "ranged", "magic", "hitpoints", "smithing"}
+    valid_skill_ids = set(skills)
     required_strings = {
         "quest_id",
         "display_name",
@@ -320,7 +335,7 @@ def validate_skills(skills: dict[str, Any]) -> list[ValidationIssue]:
     if not isinstance(skills, dict) or not skills:
         return [ValidationIssue("skills.json", "must contain at least one skill")]
 
-    required_skills = {"woodcutting", "mining", "fishing", "cooking"}
+    required_skills = ACTIVE_SKILL_IDS
     missing_skills = sorted(required_skills - set(skills))
     for skill_id in missing_skills:
         issues.append(ValidationIssue("skills.json", f"missing required skill '{skill_id}'"))
@@ -495,6 +510,7 @@ def validate_world(
     mob_positions = _validate_mobs(
         world,
         items,
+        skills,
         width,
         height,
         invalid_object_tiles,
@@ -653,6 +669,7 @@ def _validate_quest_skill_rewards(
 def _validate_mobs(
     world: dict[str, Any],
     items: dict[str, Any],
+    skills: dict[str, Any],
     width: int,
     height: int,
     blocked_tiles: set[tuple[int, int]],
@@ -707,6 +724,8 @@ def _validate_mobs(
         attack_style = mob.get("attack_style", "melee")
         if attack_style not in {"melee", "ranged", "magic"}:
             issues.append(ValidationIssue(source, "'attack_style' must be melee, ranged, or magic"))
+        elif attack_style in COMBAT_ATTACK_STYLE_SKILLS and attack_style not in skills:
+            issues.append(ValidationIssue(source, f"unknown combat skill '{attack_style}'"))
         attack_range = mob.get("attack_range", 1)
         if not isinstance(attack_range, int) or attack_range <= 0:
             issues.append(ValidationIssue(source, "'attack_range' must be a positive integer"))

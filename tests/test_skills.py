@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
 import unittest
 
 from game.systems.skills import Skills, skill_xp_thresholds
@@ -91,6 +93,17 @@ class SkillsTests(unittest.TestCase):
         self.assertEqual(skills.get("woodcutting").level, 2)
         self.assertEqual(skills.get("cooking").level, 1)
         self.assertEqual(skills.get("cooking").xp, 0)
+
+    def test_shipped_skill_data_defines_ranged_and_magic(self) -> None:
+        data_path = Path(__file__).resolve().parents[1] / "game" / "data" / "skills.json"
+        definitions = json.loads(data_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(definitions["ranged"]["display_name"], "Ranged")
+        self.assertEqual(definitions["ranged"]["starting_level"], 1)
+        self.assertEqual(definitions["ranged"]["xp_thresholds"]["99"], skill_xp_thresholds()["99"])
+        self.assertEqual(definitions["magic"]["display_name"], "Magic")
+        self.assertEqual(definitions["magic"]["starting_level"], 1)
+        self.assertEqual(definitions["magic"]["xp_thresholds"]["99"], skill_xp_thresholds()["99"])
 
 
 if __name__ == "__main__":

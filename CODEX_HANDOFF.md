@@ -2,66 +2,48 @@
 
 ## Current task
 
-Ran one audit cycle for `C:\Users\donny\Desktop\hearthvale`.
-
-## Audit report path
-
-`reports\audit\AUDIT_REPORT_20260621_145907.md`
-
-## Latest report pointer path
-
-`reports\audit\AUDIT_REPORT_LATEST.md`
+Implemented only the selected audit batch: explicit `ranged`/`magic` skill data and validation tightening.
 
 ## Files changed
 
-* `reports\audit\AUDIT_CURRENT.md`: added `.codex` read-only guardrails, handoff-drift handling, save-test example, and audit-cycle remediation selection guidance.
-* `reports\audit\AUDIT_REPORT_20260621_145907.md`: new timestamped audit report.
-* `reports\audit\AUDIT_REPORT_20260621_145613.md`: preserved concurrent audit artifact that appeared during this run.
-* `reports\audit\AUDIT_REPORT_LATEST.md`: updated to point at the new audit report.
-* `CODEX_HANDOFF.md`: replaced stale cleanup handoff with this audit-cycle handoff.
+* `game\data\skills.json`: added explicit `ranged` and `magic` skill entries with the existing level 1-99 XP curve and starting level 1.
+* `game\engine\validation.py`: tightened active skill ownership validation.
+* `tests\test_validation.py`: added focused coverage for missing active `ranged` skill references, shipped explicit `ranged`/`magic` data, and legacy save migration compatibility aliases.
+* `tests\test_skills.py`: added a shipped-data test proving `ranged` and `magic` are explicit skill entries.
+* `CODEX_HANDOFF.md`: recorded this batch and verification.
 
-No gameplay/source/test/data/save/visual/audio/routine files were changed.
+No gameplay behavior, combat formulas, equipment behavior, save migration code, HUD behavior, visuals, audio, routines, world content, launcher code, or unrelated docs were modified.
 
-## Remediation batch selected
+## Exact validation rule tightened
 
-Selected but not implemented: make active `ranged` and `magic` skills explicit in `game\data\skills.json`, then tighten validation/tests so active required/combat skill IDs must exist in `skills.json` instead of relying on fallback whitelists.
+* `validate_item_skill_refs` now accepts only skill IDs present in `skills.json`; the previous hardcoded combat-skill whitelist was removed.
+* Quest skill rewards now accept only skill IDs present in `skills.json`; the previous hardcoded combat-skill whitelist was removed.
+* `validate_skills` now requires the active standard skill set: `woodcutting`, `mining`, `fishing`, `cooking`, `attack`, `strength`, `defence`, `ranged`, `magic`, `hitpoints`, and `smithing`.
+* Mob `attack_style` values of `ranged` or `magic` now require the corresponding skill ID to exist in `skills.json`.
 
-## Commands run
+## Commands/results
 
-* `git status --short`
-* `Test-Path CODEX_HANDOFF.md; Test-Path .codex\META_AUDIT.md; Test-Path .codex\AUDIT.md; Test-Path reports\audit\AUDIT_CURRENT.md`
-* `Get-ChildItem -Force`
-* `Get-Content -Raw .codex\META_AUDIT.md`
-* `Get-Content -Raw .codex\AUDIT.md`
-* `Get-Content -Raw reports\audit\AUDIT_CURRENT.md`
-* `Get-Content -Raw CODEX_HANDOFF.md`
-* `Get-Content -Raw README.md`
-* `Get-Content -Raw requirements.txt`
-* `pwd; git rev-parse --show-toplevel; git status --short`
-* `rg --files game tests docs launcher reports\audit .codex | sort`
-* `Get-Content -Raw .gitignore`
-* `Get-ChildItem reports\audit -Force | Select-Object Mode,Length,LastWriteTime,Name`
-* Required targeted `rg` searches for systems, risks, protected terms, data, validation, save/auth, UI, visuals, launcher, and selected finding evidence
-* `Get-Content .\game\tools\validate_data.py -TotalCount 220`
-* `$env:PYTHONDONTWRITEBYTECODE='1'; python -B -m game.tools.validate_data`
-* `$env:PYTHONDONTWRITEBYTECODE='1'; python -B -m pytest -p no:cacheprovider tests\test_validation.py tests\test_save.py`
-* `$env:PYTHONDONTWRITEBYTECODE='1'; python -B -m pytest -p no:cacheprovider tests\test_launcher.py`
+* `git status --short`: clean before this batch.
+* Read `CODEX_HANDOFF.md`, `AGENTS.md`, `README.md`, `requirements.txt`, `game\data\skills.json`, `game\engine\validation.py`, `tests\test_validation.py`, `tests\test_skills.py`, `game\engine\save.py`, `tests\test_save.py`, and targeted active-skill references.
+* `python -B -c "...inspect skills.json..."`: confirmed `ranged` and `magic` entries exist with starting level 1 and XP threshold 99 at 13034431.
+* `python -B -m game.tools.validate_data`: passed.
+* `python -B -m pytest -p no:cacheprovider tests\test_validation.py tests\test_skills.py tests\test_combat.py tests\test_equipment.py`: 55 passed.
+* `git status --short`: final modified files are listed below.
 
-## Test results
+## Remaining blockers/findings
 
-* Data validation: passed.
-* Targeted pytest: 50 passed in 0.27s for validation/save; 7 passed in 0.12s for launcher.
-* Full pytest: not run per instruction to avoid full/expensive checks unless needed.
-* Game, launcher, and build smoke: not run during audit.
+* None for this explicit `ranged`/`magic` skill data and validation batch.
+* Existing audit findings outside this batch remain unmodified, including missing daily routines and placeholder-heavy visuals/audio.
+* Full pytest was not run because the scoped request asked for the focused validation/skills/combat/equipment subset.
 
-## Remaining findings
+## Final git status
 
-* Active `ranged` and `magic` skills are used by combat/equipment/HUD/save defaults but are not explicit entries in `game\data\skills.json`.
-* Time remains fixed at noon; daily routines are missing.
-* Audio/music pipeline is absent and visual identity is still procedural/placeholder-heavy.
-* Economy and world decoration content remain starter-scope.
-* Full manual gameplay smoke and full pytest remain unrun.
+* `M CODEX_HANDOFF.md`
+* `M game\data\skills.json`
+* `M game\engine\validation.py`
+* `M tests\test_skills.py`
+* `M tests\test_validation.py`
 
 ## Next recommended step
 
-Implement the selected explicit-skill schema/content batch in a separate scoped run, with `python -B -m game.tools.validate_data` and targeted validation/skills/combat/equipment tests.
+Stop after this batch. Do not start another audit remediation batch without a new scoped request.

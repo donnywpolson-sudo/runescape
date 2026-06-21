@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from game.engine.save import LEGACY_ITEM_ID_ALIASES, LEGACY_RESOURCE_ID_ALIASES
 from game.engine.validation import DataValidationError, validate_all
 from game.systems.skills import skill_xp_thresholds
 
@@ -188,6 +189,34 @@ def test_data_validation_accepts_ranged_and_magic_weapon_requirements() -> None:
     validate_all(items, _skills(), _world())
 
 
+def test_data_validation_rejects_active_skill_refs_missing_from_skill_data() -> None:
+    items = _items()
+    items["training_bow"] = {
+        "name": "Training bow",
+        "category": "weapon",
+        "stackable": False,
+        "sell_price": 10,
+        "ranged_bonus": 1,
+        "equip_slot": "weapon",
+        "required_skills": {"ranged": 1},
+    }
+    world = _world()
+    mob = _mob()
+    mob["attack_style"] = "ranged"
+    mob["attack_range"] = 4
+    world["mobs"] = [mob]
+    skills = _skills()
+    skills.pop("ranged")
+
+    with pytest.raises(DataValidationError) as exc:
+        validate_all(items, skills, world)
+
+    message = str(exc.value)
+    assert "missing required skill 'ranged'" in message
+    assert "unknown required skill 'ranged'" in message
+    assert "unknown combat skill 'ranged'" in message
+
+
 def test_data_validation_accepts_recipes_npcs_and_smithing_stations() -> None:
     world = _world()
     world["furnace"] = {"id": "furnace_01", "tile": [16, 16]}
@@ -346,6 +375,24 @@ def test_shipped_high_tier_content_uses_original_starsteel_ids() -> None:
     assert node["item_reward"] == "starsteel_ore"
 
 
+def test_shipped_skills_include_explicit_ranged_and_magic_entries() -> None:
+    skills = _load_data("skills.json")
+
+    assert skills["ranged"]["display_name"] == "Ranged"
+    assert skills["ranged"]["starting_level"] == 1
+    assert skills["ranged"]["xp_thresholds"]["99"] == skill_xp_thresholds()["99"]
+    assert skills["magic"]["display_name"] == "Magic"
+    assert skills["magic"]["starting_level"] == 1
+    assert skills["magic"]["xp_thresholds"]["99"] == skill_xp_thresholds()["99"]
+
+
+def test_legacy_save_migration_aliases_remain_compatibility_only() -> None:
+    assert LEGACY_ITEM_ID_ALIASES["runite_ore"] == "starsteel_ore"
+    assert LEGACY_RESOURCE_ID_ALIASES["runite_rock_01"] == "starsteel_rock_01"
+
+    validate_all(_items(), _skills(), _world(), quests=_quests())
+
+
 def test_shipped_world_has_no_non_useful_decorations() -> None:
     world = _load_data("world.json")
 
@@ -464,6 +511,36 @@ def _skills() -> dict[str, dict[str, object]]:
         "cooking": {
             "display_name": "Cooking",
             "starting_level": 1,
+            "xp_thresholds": thresholds,
+        },
+        "attack": {
+            "display_name": "Attack",
+            "starting_level": 1,
+            "xp_thresholds": thresholds,
+        },
+        "strength": {
+            "display_name": "Strength",
+            "starting_level": 1,
+            "xp_thresholds": thresholds,
+        },
+        "defence": {
+            "display_name": "Defence",
+            "starting_level": 1,
+            "xp_thresholds": thresholds,
+        },
+        "ranged": {
+            "display_name": "Ranged",
+            "starting_level": 1,
+            "xp_thresholds": thresholds,
+        },
+        "magic": {
+            "display_name": "Magic",
+            "starting_level": 1,
+            "xp_thresholds": thresholds,
+        },
+        "hitpoints": {
+            "display_name": "Hitpoints",
+            "starting_level": 10,
             "xp_thresholds": thresholds,
         },
         "smithing": {
