@@ -1,25 +1,24 @@
 # Hearthvale Project Audit Prompt
 
-You are auditing the local Hearthvale project.
-
-Project root:
+You are auditing the local Hearthvale project at:
 
 `C:\Users\donny\Desktop\hearthvale`
 
-Goal: inspect the current repository and produce a concise, evidence-based audit report of what should be improved. This is read-only. Do not fix code, data, tests, docs, saves, launcher files, generated files, or reports unless the user explicitly gives a separate implementation request.
+Goal: inspect the current repository and produce one concise, evidence-based audit report of what should be improved. This audit is read-only. Do not fix code, data, tests, docs, saves, launcher files, generated files, or reports unless the user explicitly gives a separate implementation request after the audit.
 
 ## Hard Rules
 
-* Do not modify, create, delete, format, migrate, regenerate, normalize, reset, checkout, stash, commit, or revert anything.
+* Verify the local path and repo root before inspecting anything else. Stop if they are wrong.
+* Record `git status --short` before and after checks.
 * Treat every modified or untracked file as user work.
-* Do not run remediation.
-* Do not install dependencies.
-* Do not run formatters.
+* Do not modify, create, delete, format, migrate, regenerate, normalize, reset, checkout, stash, commit, or revert anything, except for the single timestamped report file if the user explicitly requested one.
+* Do not install dependencies, run formatters, run the game, or run launcher/build commands during the audit.
 * Do not run commands likely to write saves, logs, caches, bytecode, build output, or generated artifacts.
+* Do not inspect real local account/save contents unless the user explicitly asks: `users.db`, `saves/`, `savegame.json`.
 * Do not paste large source files or full command output.
-* Evidence must be concise: path plus line, function, class, config key, or test name when useful.
+* Evidence must be concise: path plus line, function, class, config key, command, or test name when useful.
 * Code/docs mentioning a feature is not proof it is playable.
-* Do not recommend protected clone content. Translate classic grindable RPG feel into original Hearthvale-safe systems, names, lore, items, quests, UI, progression, visuals, and audio.
+* Do not recommend protected clone content. Translate classic grindable RPG feel into original Hearthvale-safe mechanics, names, lore, items, quests, UI, progression, visuals, and audio.
 
 ## Project Facts To Verify
 
@@ -29,7 +28,7 @@ Expected stack:
 * Panda3D
 * pytest
 
-Expected entry points:
+Expected commands:
 
 * Game: `python -m game.main`
 * Data validation: `python -m game.tools.validate_data`
@@ -46,81 +45,71 @@ Important repo areas:
 * UI: `game/ui/`
 * Data: `game/data/items.json`, `skills.json`, `world.json`, `recipes.json`, `quests.json`
 * Validation: `game/engine/validation.py`, `game/tools/validate_data.py`
-* Save/account/auth: `game/engine/save.py`, `game/engine/auth.py`, `game/settings.py`, local `users.db`, `saves/<username>.json`, legacy `savegame.json`
-* Launcher/build: `launcher/`, `Hearthvale.spec`, `build/`, `dist/`
-* Docs: `README.md`, `AGENTS.md`, `docs/`, `GRAPHICS_ANIMATION_NOTE.md`
+* Save/account/auth: `game/engine/save.py`, `game/engine/auth.py`, `game/settings.py`
+* User data boundaries: `users.db`, `saves/<username>.json`, legacy `savegame.json`
+* Launcher/build docs: `launcher/`, `Hearthvale.spec`, `build/`, `dist/`, `README.md`
+* Planning/docs: `AGENTS.md`, `docs/`, `GRAPHICS_ANIMATION_NOTE.md`
 * Tests: `tests/`
 
-Protected/generated/user-data areas:
+Protected/generated areas:
 
-* Do not inspect binary/cache/build output unless directly relevant: `.venv/`, `.pytest_cache/`, `build/`, `dist/`, logs, `*.pyc`, `__pycache__/`
-* Do not read or modify real local account/save contents unless the user explicitly asks: `users.db`, `saves/`, `savegame.json`
+* Skip `.venv/`, `.pytest_cache/`, `build/`, `dist/`, `logs/`, `*.pyc`, `__pycache__/`, binary files, and real save/account files unless directly relevant and explicitly allowed.
 
 ## Required Local Verification
 
-1. Enter the repo and verify location:
+Run from PowerShell:
 
 ```powershell
 cd C:\Users\donny\Desktop\hearthvale
 pwd
 git rev-parse --show-toplevel
 git status --short
-```
-
-If the path or repo root is wrong, stop and report.
-
-2. List top-level files and folders read-only:
-
-```powershell
 Get-ChildItem -Force | Select-Object Mode,Length,LastWriteTime,Name
 ```
 
-3. Read targeted files only:
+If `pwd` or `git rev-parse --show-toplevel` does not point at this repo, stop and report.
+
+## Targeted Inspection
+
+Read targeted files only:
 
 * `AGENTS.md`
 * `README.md`
 * `requirements.txt`
-* existing audit/planning docs only if relevant
 * `game/settings.py`
 * `game/tools/validate_data.py`
-* targeted source files under `game/`
-* targeted data files under `game/data/`
+* targeted source under `game/`
+* targeted data under `game/data/`
 * targeted tests under `tests/`
 * launcher/build files only when auditing launcher/build risk
+* docs/planning files only when they affect current behavior or recommendations
 
-4. Search for implementation status and risk signals:
+Search implementation and risk signals:
 
 ```powershell
 rg -n "TODO|FIXME|pass|NotImplemented|stub|animation|sprite|tileset|audio|music|settings|save|schema|migration|inventory|equipment|bank|shop|combat|skill|XP|level|quest|dialogue|npc|trade|market|economy|auth|account|launcher|build" AGENTS.md README.md requirements.txt docs launcher game tests -g "!*.pyc" -g "!__pycache__/**"
 ```
 
-Also search for protected-content drift terms from `AGENTS.md`, including:
+Search protected-content drift terms from `AGENTS.md`:
 
 ```powershell
-rg -n "RuneScape|OSRS|Stardew|rune|runite" AGENTS.md README.md docs launcher game tests -g "!*.pyc" -g "!__pycache__/**"
+rg -n "RuneScape|OSRS|Stardew|runite|\brune\b" AGENTS.md README.md docs launcher game tests -g "!*.pyc" -g "!__pycache__/**"
 ```
 
-Report hits as concise evidence. Distinguish intentional legacy migration/test coverage from new unsafe naming drift.
+Report hits as concise evidence. Distinguish allowed policy text, legacy compatibility/migration coverage, and unsafe gameplay/content drift.
 
 ## Safe Checks
 
-Before running validation, inspect `game/tools/validate_data.py` and confirm it is read-only. If safe:
+Before validation, inspect `game/tools/validate_data.py` and confirm it is read-only. If safe:
 
 ```powershell
 $env:PYTHONDONTWRITEBYTECODE='1'
 python -B -m game.tools.validate_data
 ```
 
-Run tests only if they appear safe/read-only. Prefer the narrowest useful tests first, or run the full suite only if warranted:
+Run only targeted pytest checks that are useful for audit evidence and appear read-only. Do not run full pytest unless the user explicitly asks for it; recommend the user run it when needed.
 
-```powershell
-$env:PYTHONDONTWRITEBYTECODE='1'
-python -B -m pytest -p no:cacheprovider
-```
-
-Do not run the game or launcher unless feasible, safe, and specifically useful. If manual verification is needed, list steps instead of launching.
-
-After any checks, run:
+After checks:
 
 ```powershell
 git status --short
@@ -140,7 +129,7 @@ For each audited system, classify it as exactly one of:
 * missing
 * manually unverified
 
-Use this distinction:
+Definitions:
 
 * `fully implemented`: code, data, UI/reachability, persistence if relevant, and tests/manual evidence all support it.
 * `partially implemented`: core logic exists, but important behavior or coverage is incomplete.
@@ -152,25 +141,25 @@ Use this distinction:
 
 ## Systems To Audit
 
-Audit the implemented state, playability, tests, risks, and highest-yield improvements for:
+Audit implemented state, playability, tests, risks, and highest-yield improvements for:
 
 * Core loop: gather, process/craft, sell/use, level up, unlock better content.
-* Skills and progression: XP curves, levels, unlocks, rewards, milestones, grind quality.
-* Gathering and resource nodes: depletion, respawn, tiers, required tools, feedback.
-* Inventory, equipment, item definitions, item categories, stackability, requirements.
+* Skills/progression: XP curves, levels, unlocks, rewards, milestones, grind quality.
+* Gathering/resource nodes: depletion, respawn, tiers, required tools, feedback.
+* Inventory/equipment/items: definitions, categories, stackability, requirements.
 * Crafting/processing: smithing, cooking, recipes, inputs/outputs, timing, XP, unlocks.
 * Combat: mobs, attacks, damage, death, drops, combat training styles, ranged/magic support, equipment stats.
-* Economy: coins, shops, buy/sell behavior, item value, resource dependency, scarcity.
+* Economy: coins, shops, buy/sell behavior, item value, dependency, scarcity.
 * Banking/storage: deposit/withdraw, persistence, UI reachability.
-* NPCs, dialogue, quests, rewards, quest state, objective tracking, memorable original activity design.
-* World and interaction: map size, pathfinding, object reachability, context actions, blocked tiles/scenery.
-* UI/HUD/input: action feedback, event log, tabs, login flow, settings, accessibility/low friction.
-* Visuals/animation/style/assets: placeholder geometry, procedural renderer hooks, animations, icon/asset policy, audio/music gaps.
-* Time/persistence/daily routine support: in-game time, save/load, account-specific saves.
-* Save/account/auth: local-only security posture, username sanitization, migrations, legacy compatibility, user-data risks.
-* Data/schema validation: shipped JSON data, validation coverage, schema drift, cross-file references.
-* Tests: coverage, failing/skipped tests, behavior gaps, missing manual checks.
-* Launcher/build/docs: README commands, launcher behavior, build docs, generated output boundaries.
+* NPCs/dialogue/quests: state, objective tracking, rewards, original activity design.
+* World/interaction: map size, pathfinding, object reachability, context actions, blocked tiles/scenery.
+* UI/HUD/input: feedback, event log, tabs, login flow, settings, accessibility/low friction.
+* Visuals/animation/assets/audio/style: placeholder geometry, procedural renderer hooks, animations, icons, audio/music gaps, settings.
+* Time/persistence/routines: in-game time, save/load, account-specific saves.
+* Save/account/auth: local-only posture, username safety, migrations, legacy compatibility, user-data risks.
+* Data/schema validation: JSON data, validation coverage, schema drift, cross-file references.
+* Tests: coverage, failing/skipped tests, behavior gaps, manual checks.
+* Launcher/build/docs: README commands, launcher behavior, generated output boundaries.
 * Originality/IP safety: protected-term drift, protected-like formulas, names, maps, icons, music, dialogue, quests, or recommendations.
 
 ## Target Game Feel
@@ -180,7 +169,7 @@ Evaluate whether current systems support an original single-player grindable RPG
 * long-term account-building progression
 * meaningful skilling as a main playstyle
 * multiple valid goals and sandbox freedom
-* useful gathering, processing, crafting, selling, banking, and equipment loops
+* gathering, processing, crafting, selling, banking, and equipment loops
 * scarcity, rarity, risk, achievement weight, and visible milestones
 * simple but sticky combat that does not crowd out non-combat goals
 * memorable original NPC/quest/activity content

@@ -58,8 +58,9 @@ and verify:
 
 ## Controls
 
-- This checkout auto-loads the local `donny101` save at startup. Clear
-  `AUTO_LOGIN_USERNAME` in `game/settings.py` to return to the local login screen.
+- This checkout shows the local login screen at startup. Set
+  `AUTO_LOGIN_USERNAME` in `game/settings.py` to a local username only when you
+  want development auto-login.
 - Enter a username and password, then select `Register` to create a local account.
 - Select `Login` to enter the game with an existing local account.
 - Press Tab in the username field to move focus to the password field.

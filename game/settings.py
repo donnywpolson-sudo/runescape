@@ -12,8 +12,8 @@ LOGS_DIR = BASE_DIR.parent / "logs"
 WINDOW_TITLE = "Hearthvale Prototype"
 WINDOW_SIZE = (1280, 720)
 
-# Temporary local convenience; set to "" to restore the login screen.
-AUTO_LOGIN_USERNAME = "donny101"
+# Optional local convenience; leave empty to show the login screen.
+AUTO_LOGIN_USERNAME = ""
 
 TILE_SIZE = 1.0
 
