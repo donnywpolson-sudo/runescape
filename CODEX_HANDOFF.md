@@ -2,48 +2,75 @@
 
 ## Current task
 
-Implemented only the selected audit batch: explicit `ranged`/`magic` skill data and validation tightening.
+Implemented only the selected audit batch: Launcher build dependency install guard.
 
 ## Files changed
 
-* `game\data\skills.json`: added explicit `ranged` and `magic` skill entries with the existing level 1-99 XP curve and starting level 1.
-* `game\engine\validation.py`: tightened active skill ownership validation.
-* `tests\test_validation.py`: added focused coverage for missing active `ranged` skill references, shipped explicit `ranged`/`magic` data, and legacy save migration compatibility aliases.
-* `tests\test_skills.py`: added a shipped-data test proving `ranged` and `magic` are explicit skill entries.
-* `CODEX_HANDOFF.md`: recorded this batch and verification.
+* `launcher\build_launcher.ps1`: added explicit `-InstallBuildDependencies` opt-in and default fail-fast behavior when PyInstaller is missing.
+* `README.md`: documented that PyInstaller must be installed explicitly, or the build script must be run with `-InstallBuildDependencies`.
+* `tests\test_launcher.py`: added a focused test proving the build script requires an explicit dependency-install flag before `pip install pyinstaller`.
+* `CODEX_HANDOFF.md`: recorded this remediation, checks, and remaining blockers.
 
-No gameplay behavior, combat formulas, equipment behavior, save migration code, HUD behavior, visuals, audio, routines, world content, launcher code, or unrelated docs were modified.
+Pre-existing audit/process artifacts remain dirty/staged and were preserved:
 
-## Exact validation rule tightened
+* `RUN_AUDIT_CYCLE.ps1`
+* `reports\audit\AUDIT_CURRENT.md`
+* `reports\audit\AUDIT_REPORT_LATEST.md`
+* `reports\audit\AUDIT_REPORT_20260621_151336.md`
+* `reports\audit\AUDIT_REPORT_20260621_153137.md`
+* `reports\audit\AUDIT_REPORT_20260621_153903.md`
 
-* `validate_item_skill_refs` now accepts only skill IDs present in `skills.json`; the previous hardcoded combat-skill whitelist was removed.
-* Quest skill rewards now accept only skill IDs present in `skills.json`; the previous hardcoded combat-skill whitelist was removed.
-* `validate_skills` now requires the active standard skill set: `woodcutting`, `mining`, `fishing`, `cooking`, `attack`, `strength`, `defence`, `ranged`, `magic`, `hitpoints`, and `smithing`.
-* Mob `attack_style` values of `ranged` or `magic` now require the corresponding skill ID to exist in `skills.json`.
+## Exact guard behavior added
+
+* Default build behavior no longer installs PyInstaller when it is missing.
+* If PyInstaller is missing and `-InstallBuildDependencies` is not supplied, the script throws a clear message:
+  * PyInstaller is not installed.
+  * No dependencies were installed.
+  * Install explicitly with `"<project>\.venv\Scripts\python.exe" -m pip install pyinstaller`, or rerun with `-InstallBuildDependencies`.
+* If PyInstaller is already installed, the existing build path is preserved.
+* If `-InstallBuildDependencies` is supplied and PyInstaller is missing, the script may run `python -m pip install pyinstaller` explicitly.
 
 ## Commands/results
 
-* `git status --short`: clean before this batch.
-* Read `CODEX_HANDOFF.md`, `AGENTS.md`, `README.md`, `requirements.txt`, `game\data\skills.json`, `game\engine\validation.py`, `tests\test_validation.py`, `tests\test_skills.py`, `game\engine\save.py`, `tests\test_save.py`, and targeted active-skill references.
-* `python -B -c "...inspect skills.json..."`: confirmed `ranged` and `magic` entries exist with starting level 1 and XP threshold 99 at 13034431.
-* `python -B -m game.tools.validate_data`: passed.
-* `python -B -m pytest -p no:cacheprovider tests\test_validation.py tests\test_skills.py tests\test_combat.py tests\test_equipment.py`: 55 passed.
-* `git status --short`: final modified files are listed below.
+* `git status --short`: showed pre-existing audit/process changes before this batch.
+* Read `CODEX_HANDOFF.md`, `README.md`, `requirements.txt`, `launcher\build_launcher.ps1`, and `tests\test_launcher.py`.
+* `rg -n "pip install|python -m pip|PyInstaller|throw|InstallBuildDependencies|No dependencies were installed" launcher\build_launcher.ps1 README.md tests\test_launcher.py`: confirmed the install command is behind `-InstallBuildDependencies` and the docs mention explicit install.
+* `python -B -m pytest -p no:cacheprovider tests\test_launcher.py`: 8 passed.
+* `git diff --check`: passed.
+* `git diff --cached --check`: passed.
 
-## Remaining blockers/findings
+## Dependency installation attempted
 
-* None for this explicit `ranged`/`magic` skill data and validation batch.
-* Existing audit findings outside this batch remain unmodified, including missing daily routines and placeholder-heavy visuals/audio.
-* Full pytest was not run because the scoped request asked for the focused validation/skills/combat/equipment subset.
+No. The PyInstaller build script was not run, and no dependency installation was attempted.
+
+## Remaining blockers
+
+Low
+
+* Pre-existing audit/process artifacts remain dirty/staged in the worktree.
+* Manual `.\launcher\build_launcher.ps1` smoke was not run because it can write generated `build\` and `dist\` output and was not explicitly approved.
+
+Medium
+
+* None for this launcher build dependency guard batch.
+
+Severe
+
+* None.
 
 ## Final git status
 
-* `M CODEX_HANDOFF.md`
-* `M game\data\skills.json`
-* `M game\engine\validation.py`
-* `M tests\test_skills.py`
-* `M tests\test_validation.py`
+* `MM CODEX_HANDOFF.md`
+* `M README.md`
+* `M RUN_AUDIT_CYCLE.ps1`
+* `M launcher\build_launcher.ps1`
+* `MM reports\audit\AUDIT_CURRENT.md`
+* `A reports\audit\AUDIT_REPORT_20260621_151336.md`
+* `MM reports\audit\AUDIT_REPORT_LATEST.md`
+* `M tests\test_launcher.py`
+* `?? reports\audit\AUDIT_REPORT_20260621_153137.md`
+* `?? reports\audit\AUDIT_REPORT_20260621_153903.md`
 
-## Next recommended step
+## Next action
 
-Stop after this batch. Do not start another audit remediation batch without a new scoped request.
+Stop after this batch. Run manual launcher build smoke only if explicitly approved because it writes generated build output.

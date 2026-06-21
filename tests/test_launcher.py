@@ -100,6 +100,16 @@ def test_build_command_uses_resolved_python(tmp_path: Path) -> None:
     assert launcher.build_command(project_root) == [str(pythonw), "-m", "game.main"]
 
 
+def test_build_launcher_requires_explicit_dependency_install_flag() -> None:
+    script_path = Path(__file__).resolve().parents[1] / "launcher" / "build_launcher.ps1"
+    script = script_path.read_text(encoding="utf-8")
+
+    assert "[switch]$InstallBuildDependencies" in script
+    assert "No dependencies were installed" in script
+    assert "if (-not $InstallBuildDependencies)" in script
+    assert script.index("-m pip install pyinstaller") > script.index("if (-not $InstallBuildDependencies)")
+
+
 def _project_root(tmp_path: Path, name: str) -> Path:
     project_root = tmp_path / name
     game_dir = project_root / "game"
