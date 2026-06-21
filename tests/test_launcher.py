@@ -64,9 +64,9 @@ def test_frozen_desktop_launcher_resolves_hearthvale_folder(tmp_path: Path) -> N
     assert resolved == project_root.resolve()
 
 
-def test_frozen_desktop_launcher_resolves_legacy_project_folder(tmp_path: Path) -> None:
+def test_frozen_desktop_launcher_resolves_capitalized_project_folder(tmp_path: Path) -> None:
     desktop = tmp_path / "Desktop"
-    project_root = _project_root(desktop, "runescape")
+    project_root = _project_root(desktop, "Hearthvale")
     executable_path = desktop / "Hearthvale.exe"
 
     resolved = launcher.resolve_project_root(

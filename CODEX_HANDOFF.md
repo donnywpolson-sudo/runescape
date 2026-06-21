@@ -1,53 +1,77 @@
 # CODEX_HANDOFF
 
-## Audit report path
+## Current task
 
-`reports\audit\AUDIT_REPORT_20260621_143947.md`
+Clean only the ignored local generated `Hearthvale.spec` protected-path drift.
 
-## Latest report pointer path
+## Hearthvale.spec status
 
-`reports\audit\AUDIT_REPORT_LATEST.md`
+* `Hearthvale.spec` was untracked: `git ls-files -- Hearthvale.spec` returned no tracked path.
+* `Hearthvale.spec` was ignored: `git check-ignore -v Hearthvale.spec` reported `.gitignore:15:*.spec`.
+* `Hearthvale.spec` was generated/local: `.gitignore` ignores `*.spec`, and `launcher\build_launcher.ps1` invokes PyInstaller with `--name Hearthvale`.
+
+## Action taken
+
+Deleted the ignored local `Hearthvale.spec`.
+
+Reason: the only documented regeneration path is the launcher build command, which runs PyInstaller, may install PyInstaller, and creates `build\` and `dist\` artifacts. There is no documented spec-only regeneration command, so deleting the ignored generated stale spec was the smallest scoped cleanup.
 
 ## Files changed
 
-* `RUN_AUDIT_CYCLE.ps1`: moved generated audit outputs to `reports\audit`, made `.codex\AUDIT.md` read-only/optional, and changed Step 3 to select but not remediate findings.
-* `reports\audit\AUDIT_CURRENT.md`: created the reusable Hearthvale audit prompt from the available meta/canonical audit guidance.
-* `reports\audit\AUDIT_REPORT_20260621_143947.md`: created the timestamped audit report.
-* `reports\audit\AUDIT_REPORT_LATEST.md`: created the latest-report pointer.
-* `CODEX_HANDOFF.md`: replaced the stale blocked-run handoff with this completed audit-cycle handoff.
+* `CODEX_HANDOFF.md`: recorded the ignored spec cleanup, commands, checks, and remaining protected-term hits.
 
-## Remediation batch selected
+Pre-existing modified files from the completed launcher/docs remediation batch remain:
 
-Clean the smallest non-gameplay protected-term drift batch:
+* `GRAPHICS_ANIMATION_NOTE.md`
+* `README.md`
+* `launcher\hearthvale_launcher.py`
+* `tests\test_launcher.py`
 
-* Remove or rename the legacy protected desktop-folder fallback in `launcher\hearthvale_launcher.py`.
-* Update the focused launcher test fixture in `tests\test_launcher.py`.
-* Reword `GRAPHICS_ANIMATION_NOTE.md` to avoid naming protected games.
-* Do not touch gameplay code, save migrations, protected-term policy, content data, visuals/audio implementation, routines, or broad tests.
-* Treat ignored local `Hearthvale.spec` as generated/user-local; remove or regenerate only with explicit user approval.
+## Exact commands run
 
-## Tests/checks run
+* `git status --short --ignored`
+* `git ls-files -- Hearthvale.spec`
+* `git check-ignore -v Hearthvale.spec`
+* `Get-Content -Raw .gitignore`
+* `Get-Content -Raw README.md`
+* `Get-Content -Raw requirements.txt`
+* `Get-Content -Raw launcher\build_launcher.ps1`
+* `Get-Content -Raw Hearthvale.spec`
+* `rg -n "pyinstaller|spec|Hearthvale.spec|build_launcher|--name|--onefile" README.md launcher . -g "!*.pyc" -g "!__pycache__/**" -g "!.venv/**" -g "!.pytest_cache/**" -g "!build/**" -g "!dist/**"`
+* `Remove-Item -LiteralPath <resolved repo>\Hearthvale.spec`
+* `Test-Path .\Hearthvale.spec`
+* `git status --short --ignored`
+* `rg -ni "RuneScape|OSRS|Stardew|runite|\brune\b" AGENTS.md README.md GRAPHICS_ANIMATION_NOTE.md docs launcher game tests -g "!*.pyc" -g "!__pycache__/**"`
+* `Select-String -Path Hearthvale.spec -Pattern 'RuneScape|OSRS|Stardew|runite|\brune\b' -CaseSensitive:$false`
 
-* `git status --short`: pre-existing ` M RUN_AUDIT_CYCLE.ps1`.
-* `pwd`: confirmed `C:\Users\donny\Desktop\hearthvale`.
-* `git rev-parse --show-toplevel`: confirmed `C:/Users/donny/Desktop/hearthvale`.
-* Targeted reads: `CODEX_HANDOFF.md`, `.codex\META_AUDIT.md`, `.codex\AUDIT.md`, `AGENTS.md`, `README.md`, `requirements.txt`, `.gitignore`, targeted source/data/test/docs/launcher files.
-* Targeted searches: implementation/risk search, case-insensitive protected-term search, data/system/test evidence searches.
-* `python -B -m game.tools.validate_data`: passed.
-* `python -B -m pytest -p no:cacheprovider tests\test_validation.py tests\test_launcher.py`: 40 passed.
-* `git status --short` before report writes: unchanged pre-existing ` M RUN_AUDIT_CYCLE.ps1`.
-* `powershell -NoProfile -ExecutionPolicy Bypass -File .\RUN_AUDIT_CYCLE.ps1`: completed.
-* Wrapper `python -B -m game.tools.validate_data`: passed.
-* Wrapper `python -B -m pytest -p no:cacheprovider`: 250 passed.
+## Check results
 
-## Remaining findings
+* `Test-Path .\Hearthvale.spec`: `False`.
+* `git status --short --ignored`: no `!! Hearthvale.spec` entry after deletion.
+* Explicit spec protected-term check: `Hearthvale.spec not present`.
+* No validation or pytest was run for this task because no gameplay, launcher code, data, validation policy, or tests were changed in this task; only the ignored generated spec was deleted and this handoff was updated.
 
-* Protected-term drift remains in `launcher\hearthvale_launcher.py`, `tests\test_launcher.py`, `GRAPHICS_ANIMATION_NOTE.md`, and ignored local `Hearthvale.spec`.
-* `ranged` and `magic` are active systems but absent from `game\data\skills.json`, relying on fallback definitions.
-* Daily routines are missing because game time is fixed at noon.
-* Visuals remain procedural placeholder geometry and audio/music are missing.
-* Manual game smoke was not run.
+## Remaining protected-term hits
+
+The tracked-path protected-term search now reports only intentional references:
+
+* `AGENTS.md`: protected-term policy text.
+* `game\engine\validation.py`: protected-term validator guard list.
+* `tests\test_validation.py`: validator guard test fixture/assertions.
+* `game\engine\save.py` and `tests\test_save.py`: legacy save migration compatibility aliases/tests.
+
+## Remaining blockers
+
+None for the ignored local generated spec cleanup.
+
+## Final git status
+
+* `M CODEX_HANDOFF.md`
+* `M GRAPHICS_ANIMATION_NOTE.md`
+* `M README.md`
+* `M launcher\hearthvale_launcher.py`
+* `M tests\test_launcher.py`
 
 ## Next recommended step
 
-Implement the selected non-gameplay protected-term drift cleanup batch, then run targeted launcher/protected-term checks only.
+None for this cleanup. Do not start another audit remediation batch without a new scoped request.
