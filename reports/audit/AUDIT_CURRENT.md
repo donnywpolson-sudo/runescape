@@ -2,147 +2,142 @@
 
 You are auditing the local Hearthvale project at `C:\Users\donny\Desktop\hearthvale`.
 
-Goal: inspect the current repository and produce one concise, evidence-based audit report of what should improve. This is read-only unless the user explicitly asks you to create or update report files under `reports\audit`. Do not fix code, data, tests, saves, generated files, launcher files, or docs during the audit.
+Goal: inspect the repository and produce one concise, evidence-based audit report of what should improve. This is read-only unless the user explicitly asks you to create or update report files under `reports\audit`. Do not fix code, data, tests, saves, launcher files, or generated output during the audit.
 
 ## Hard Rules
 
-* Verify `pwd`, `git rev-parse --show-toplevel`, and `git status --short` before deeper inspection. Stop if the path or repo root is wrong.
-* Treat every modified or untracked file as user work. Do not clean, reset, checkout, stash, revert, delete, migrate, format, regenerate, commit, or install dependencies.
-* Treat `.codex\META_AUDIT.md` and `.codex\AUDIT.md` as optional read-only prompt inputs. Never write to `.codex`, and do not fail the audit if `.codex` is unavailable.
-* Create or update files only when explicitly requested, and only within the requested report/handoff paths.
-* Skip `.venv/`, `.pytest_cache/`, `__pycache__/`, `*.pyc`, `build/`, `dist/`, `logs/`, binary files, and real user data.
-* Do not inspect real account/save contents unless explicitly asked: `users.db`, `saves/`, `savegame.json`.
-* If the user supplies stricter audit-only rules, allowed output paths, forbidden remediation areas, timestamp/report names, latest-pointer paths, handoff paths, or final response sections, obey those limits over this reusable prompt.
-* Do not run the game, launcher, build script, formatter, installer, manual smoke, or full pytest unless the user explicitly asks. Ask the user to run full/expensive checks when needed.
-* Evidence must be concise: `path:line`, function/class/config key, command, or test name. Do not paste large source files or full logs.
-* Code/docs mentioning a feature is not proof it is playable. Classify audited systems exactly as `fully implemented`, `partially implemented`, `partially wired`, `present but unused`, `stub/TODO`, `missing`, or `manually unverified`.
-* Do not recommend protected clone content. Translate classic grindable RPG feel into original Hearthvale-safe mechanics, names, lore, items, quests, UI, progression, visuals, and audio.
+- Verify `pwd`, `git rev-parse --show-toplevel`, and `git status --short` before deeper inspection. Stop if the path or repo root is wrong.
+- Treat every modified or untracked file as user work. Do not clean, reset, checkout, stash, revert, delete, migrate, normalize, format, regenerate, commit, or install dependencies.
+- Read `.codex\META_AUDIT.md` and `.codex\AUDIT.md` if present and readable, but never write to `.codex`.
+- Read `CODEX_HANDOFF.md` first if present.
+- Skip `.venv/`, caches, build/dist/logs, binary files, bytecode, and real user save/account data unless explicitly allowed.
+- Do not run the game, launcher, build script, manual smoke, or full pytest during the audit.
+- Do not paste large source files or full logs.
+- Evidence must stay concise: path plus line/function/class/config key, command, or test name.
+- Code/docs mentioning a feature are not proof it is playable.
+- Do not recommend protected clone content; translate the desired grindy RPG feel into original Hearthvale-safe names, lore, items, quests, UI, visuals, and audio.
 
 ## Required Context
 
 Read targeted files only:
 
-* `AGENTS.md`, `CODEX_HANDOFF.md` if present, `README.md`, `requirements.txt`, `.gitignore`
-* `.codex\META_AUDIT.md` and `.codex\AUDIT.md` if present and readable; never write to `.codex`
-* `game/settings.py`, `game/main.py`, `game/engine/app.py`
-* `game/engine/save.py`, `game/engine/auth.py`, `game/engine/validation.py`, `game/tools/validate_data.py`
-* Targeted files in `game/systems/`, `game/world/`, `game/ui/`, `game/data/`, `tests/`
-* `launcher/`, `Hearthvale.spec`, `docs/`, and `GRAPHICS_ANIMATION_NOTE.md` only when relevant to launcher/build, assets, visuals, audio, originality, or docs drift
-
-Expected stack and commands:
-
-* Stack: Python 3.11, Panda3D, pytest
-* Run: `python -m game.main`
-* Validate data: `python -m game.tools.validate_data`
-* Tests: `python -m pytest`
-* Launcher build: `.\launcher\build_launcher.ps1`
+- `AGENTS.md`, `CODEX_HANDOFF.md` if present, `README.md`, `requirements.txt`, `.gitignore`
+- `.codex\META_AUDIT.md` and `.codex\AUDIT.md` if present
+- `GRAPHICS_ANIMATION_NOTE.md` and `RUN_AUDIT_CYCLE.ps1` if present
+- `game/settings.py`, `game/main.py`, `game/engine/app.py`, `game/world/time.py`
+- `game/engine/save.py`, `game/engine/auth.py`, `game/engine/validation.py`, `game/tools/validate_data.py`
+- targeted files under `game/systems/`, `game/world/`, `game/ui/`, `game/data/`, `tests/`
+- `launcher/`, `Hearthvale.spec`, and `docs/` when relevant to launcher/build, visuals, audio, originality, or docs drift
 
 ## Required Searches
 
-Use `rg` when available. Keep results summarized.
+Use `rg` when available. Summarize results, do not dump them.
 
 ```powershell
-rg -n "TODO|FIXME|pass|NotImplemented|stub|animation|sprite|tileset|audio|music|settings|save|schema|migration|inventory|equipment|bank|shop|combat|skill|XP|level|quest|dialogue|npc|trade|market|economy|auth|account|launcher|build" AGENTS.md README.md requirements.txt docs launcher game tests -g "!*.pyc" -g "!__pycache__/**"
+rg -n "TODO|FIXME|pass|NotImplemented|stub|animation|sprite|tileset|audio|music|settings|options|time|day|night|routine|save|schema|migration|inventory|equipment|bank|shop|combat|skill|XP|level|quest|dialogue|npc|trade|market|economy|auth|account|launcher|build" AGENTS.md README.md requirements.txt docs launcher game tests -g "!*.pyc" -g "!__pycache__/**"
 rg -ni "runescape|osrs|stardew|runite|\brune\b" AGENTS.md README.md docs launcher game tests -g "!*.pyc" -g "!__pycache__/**"
 ```
 
-Include `CODEX_HANDOFF.md`, audit runner scripts such as `RUN_AUDIT_CYCLE.ps1`, and root planning/asset notes such as `GRAPHICS_ANIMATION_NOTE.md` in the searches when present. If `CODEX_HANDOFF.md` conflicts with current `git status`, report it as stale handoff/process drift rather than source drift.
-
-Classify protected-term hits as policy text, legacy compatibility/migration coverage, generated/ignored drift, or unsafe active content drift.
+Classify hits as policy text, legacy compatibility, generated or ignored drift, or unsafe active content drift.
 
 ## Safe Checks
 
-Inspect `game/tools/validate_data.py` first. If it is read-only, run:
+- Inspect `game/tools/validate_data.py` first. If it is read-only, run `python -B -m game.tools.validate_data` with `PYTHONDONTWRITEBYTECODE=1`.
+- Run only targeted pytest slices that directly support findings and appear read-only. Never run full pytest unless the user explicitly asks.
+- After checks, record `git status --short` again.
 
-```powershell
-$env:PYTHONDONTWRITEBYTECODE='1'
-python -B -m game.tools.validate_data
-```
+## Classification
 
-Run only targeted pytest checks that directly support audit findings and appear read-only, for example:
+For each audited system, classify it as exactly one of:
 
-```powershell
-$env:PYTHONDONTWRITEBYTECODE='1'
-python -B -m pytest -p no:cacheprovider tests\test_validation.py tests\test_save.py tests\test_launcher.py
-```
-
-Run `git status --short` after checks and report whether the worktree changed.
+- `fully implemented`
+- `partially implemented`
+- `partially wired`
+- `present but unused`
+- `stub/TODO`
+- `missing`
+- `manually unverified`
 
 ## Systems To Audit
 
-Audit implemented state, reachability, tests, risks, and highest-yield improvements for:
+Audit implemented state, playability, tests, risks, and highest-yield improvements for:
 
-* Core loop: gather, process/craft, sell/use, level, unlock
-* Skills/progression: XP curves, levels, unlocks, rewards, milestones, grind quality
-* Gathering/resource nodes: depletion, respawn, tiers, tools, feedback
-* Inventory/equipment/items: definitions, stackability, requirements, drops
-* Crafting/processing: cooking, smelting, smithing, timing, XP, unlocks
-* Combat: mobs, styles, damage, death, drops, equipment stats, ranged/magic
-* Economy: coins, shops, buy/sell behavior, scarcity, resource dependency
-* Banking/storage: UI reachability, deposit/withdraw, persistence
-* NPCs/dialogue/quests: state, objective tracking, rewards, original activity design
-* World/interaction: map size, pathfinding, object reachability, context actions, scenery
-* UI/HUD/input: feedback, tabs, login, settings, accessibility/low friction
-* Visuals/animation/assets/audio/style: procedural renderer hooks, placeholder geometry, authored asset gaps, audio/music gaps
-* Time/persistence/routines: fixed or advancing time, routines, save/load/account boundaries
-* Save/account/auth: local-only posture, username safety, migrations, legacy compatibility, user-data risk
-* Data/schema validation: JSON coverage, cross-file references, originality guard, schema drift
-* Tests: coverage, failing/skipped checks, manual checks
-* Launcher/build/docs: launcher resolution, build script side effects, generated-output boundaries, README drift
-* Originality/IP safety: active data, docs, tests, launcher, generated files, and recommendation wording
+- Core loop: gather, process/craft, sell/use, level up, unlock
+- Skills/progression: XP curves, levels, unlocks, rewards, milestones, grind quality
+- Gathering/resource nodes: depletion, respawn, tiers, tools, feedback
+- Inventory/equipment/items: definitions, stackability, requirements, drops
+- Crafting/processing: cooking, smithing, recipes, timing, XP, unlocks
+- Combat: mobs, styles, damage, death, drops, equipment stats, ranged/magic
+- Economy: coins, shops, buy/sell behavior, scarcity, resource dependency
+- Banking/storage: UI reachability, deposit/withdraw, persistence
+- NPCs/dialogue/quests: state, objective tracking, rewards, original activity design
+- World/interaction: map size, pathfinding, object reachability, context actions, scenery
+- UI/HUD/input: feedback, tabs, login, settings, accessibility, low friction
+- Visuals/animation/assets/audio/style: placeholder geometry, procedural hooks, authored asset gaps, audio/music gaps
+- Time/persistence/routines: fixed or advancing time, daily routine support, save/load, account boundaries
+- Save/account/auth: local-only posture, username safety, migrations, legacy compatibility, user-data risk
+- Data/schema validation: JSON coverage, cross-file references, originality guard, schema drift
+- Tests: coverage, failing or skipped checks, manual checks
+- Launcher/build/docs: launcher resolution, build script side effects, generated-output boundaries, README drift
+- Originality/IP safety: active data, docs, tests, launcher, generated files, and recommendation wording
 
 ## Target Game Feel
 
-Evaluate whether current systems support an original single-player grindable RPG with long-term account growth, meaningful skilling, multiple valid goals, gather-process-sell/use-level-unlock loops, scarcity, risk, visible milestones, simple sticky combat, memorable original NPC/quest/activity content, clear feedback, low friction, and safe nostalgic texture.
+Evaluate whether current systems support an original single-player grindable RPG with:
 
-If social/community, trading, market, multiplayer, online-account, daily routine, or live-service goals are discussed, verify implemented support or label them `missing` or `manually unverified`.
+- long-term account growth
+- meaningful skilling as a main playstyle
+- multiple valid goals and sandbox freedom
+- gather, process, craft, sell/use, bank, and equipment loops
+- scarcity, rarity, risk, visible milestones, and achievement weight
+- simple sticky combat that does not crowd out non-combat goals
+- memorable original NPC, quest, and activity content
+- clear feedback for XP, levels, loot, errors, unlocks, and persistence
+- low mechanical friction and readable controls
+- original nostalgic texture through safe names, lore, visuals, and audio
+
+If social/community, trading, market, multiplayer, or daily routine goals are discussed, verify implemented support or label them `missing` or `manually unverified`.
 
 ## Prioritization
 
 Rank recommendations by:
 
-1. Failing validation/tests or save/data/originality risk.
-2. Player value and core-loop impact.
-3. Small safe scope and reuse of existing systems.
-4. Testability.
-5. Minimal refactor and no new dependencies.
+1. Failing validation or tests, or save/data/originality risk
+2. Player value and core-loop impact
+3. Small safe scope and reuse of existing systems
+4. Testability
+5. Minimal refactor and no new dependencies
 
 Avoid broad rewrites, speculative architecture, generated-file churn, and clone-like feature requests.
 
-If the user asks for an audit cycle, read the new audit report after writing it and select exactly one smallest safe actionable remediation batch. Do not fix the batch unless the user separately asks for implementation. Record the selected batch in `CODEX_HANDOFF.md` only when the task explicitly requests a handoff update.
+## Audit-Cycle Rule
 
-If the user forbids source/gameplay/data/test remediation for the selected batch, select only a future docs/process/report batch that stays inside the allowed future scope, or state that no safe batch is selectable.
+If the user asks for an audit cycle, write the report, then read it and select exactly one smallest safe actionable remediation batch. Do not fix the batch unless the user separately asks for implementation. If source, gameplay, data, save, or test remediation is forbidden, select only docs, process, or report work, or state that no safe batch is selectable.
 
 Audit-cycle reports and handoffs must clearly state:
 
-* Audit-only: yes
-* Remediation applied: no
-* Selected batch: `<name>`
-* Selected batch severity: `<Low/Medium/Severe>`
-* Likely files: `<paths>`
-* Suggested commands: `<validation/tests/manual smoke>`
-* Next action: run a separate approved remediation goal
+- Audit-only: yes
+- Remediation applied: no
+- Selected batch: `<name>`
+- Selected batch severity: `<Low/Medium/Severe>`
+- Likely files: `<paths>`
+- Suggested commands: `<validation/tests/manual smoke>`
+- Next action: run a separate approved remediation goal
 
-The selected-batch summary must be easy to copy into the next Codex goal and include:
+The selected-batch summary must be copyable and include:
 
-* Problem statement
-* Scope boundaries
-* Likely files
-* Acceptance criteria
-* Suggested focused tests
-* Explicit stop condition
-
-For audit-cycle runs that request report files:
-
-* Create exactly one timestamped report at the requested `reports\audit\AUDIT_REPORT_<timestamp>.md` path.
-* Update `reports\audit\AUDIT_REPORT_LATEST.md` to point at the new report when requested.
-* Update `CODEX_HANDOFF.md` only when requested, and include the audit report path, latest report pointer path, files changed, selected remediation batch, audit-only and remediation-applied status, selected batch severity, likely files, suggested commands, checks run, remaining findings, and next recommended step.
-* Do not treat required report/handoff updates as remediation. The selected remediation batch is for a future implementation prompt.
+- Problem statement
+- Scope boundaries
+- Likely files
+- Acceptance criteria
+- Suggested focused tests
+- Explicit stop condition
 
 ## Required Report Format
 
 Output exactly:
 
+```md
 # Snapshot
 
 * Local path:
@@ -211,3 +206,4 @@ Rank | Feature/Fix | Why | Complexity | Risk | Files likely touched | Acceptance
 # Next Codex Prompt
 
 A scoped implementation prompt ready to paste. It must ask for one small, testable improvement and repeat: do not copy protected content, preserve user work, and do not commit.
+```

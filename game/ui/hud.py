@@ -165,11 +165,32 @@ class Hud:
         self.stats_panel = _panel((-0.02, 0.49, -0.22, 0.04), (-1.75, 0, 0.95), PANEL)
         self.stats = _text(self.stats_panel, "", (0.025, -0.035), STATS_TEXT_SCALE, TextNode.ALeft, TEXT, True)
         self.file_button = _button(self.stats_panel, "File", (0.37, 0, -0.155), SMALL_BUTTON_TEXT_SCALE, self.toggle_file_menu)
+        self.settings_button = _button(
+            self.stats_panel,
+            "Settings",
+            (0.23, 0, -0.155),
+            SMALL_BUTTON_TEXT_SCALE,
+            self.toggle_settings_menu,
+        )
         self.file_menu = _panel((-0.11, 0.11, -0.155, 0.02), (0.37, 0, -0.21), PANEL_DARK, self.stats_panel)
         _button(self.file_menu, "Save", (0.0, 0, -0.025), SMALL_BUTTON_TEXT_SCALE, self._save_from_menu)
         _button(self.file_menu, "Load", (0.0, 0, -0.080), SMALL_BUTTON_TEXT_SCALE, self._load_from_menu)
         _button(self.file_menu, "Quit", (0.0, 0, -0.135), SMALL_BUTTON_TEXT_SCALE, self._quit_from_menu)
         self.file_menu.hide()
+        self.settings_menu_open = False
+        self.settings_menu = _panel((-0.15, 0.15, -0.165, 0.03), (0.28, 0, -0.165), PANEL_DARK, self.stats_panel)
+        _text(self.settings_menu, "Settings", (0.0, 0.015), SMALL_BUTTON_TEXT_SCALE, TextNode.ACenter, GOLD)
+        self.settings_compact_button = _button(
+            self.settings_menu,
+            "",
+            (0.0, 0, -0.058),
+            SMALL_BUTTON_TEXT_SCALE,
+            self.toggle_compact_tabs,
+            frame_size=(-0.145, 0.145, -0.024, 0.024),
+        )
+        _button(self.settings_menu, "Close", (0.0, 0, -0.128), SMALL_BUTTON_TEXT_SCALE, self._close_settings_menu)
+        self.settings_menu.hide()
+        self._sync_settings_compact_button()
 
         self.feedback_panel = _panel((-0.54, 0.54, -0.075, 0.045), (0.0, 0, 0.91), PANEL_DARK)
         self.feedback = _text(self.feedback_panel, "", (0.0, -0.012), FEEDBACK_TEXT_SCALE, TextNode.ACenter, GOLD, True)
@@ -342,11 +363,25 @@ class Hud:
             self.xp_toast.hide()
 
     def toggle_file_menu(self) -> None:
-        self.file_menu_open = not self.file_menu_open
         if self.file_menu_open:
-            self.file_menu.show()
-        else:
-            self.file_menu.hide()
+            self._close_file_menu()
+            return
+        self._close_settings_menu()
+        self.file_menu_open = True
+        self.file_menu.show()
+
+    def toggle_settings_menu(self) -> None:
+        if self.settings_menu_open:
+            self._close_settings_menu()
+            return
+        self._close_file_menu()
+        self.settings_menu_open = True
+        self.settings_menu.show()
+        self._sync_settings_compact_button()
+
+    def toggle_compact_tabs(self) -> None:
+        self.select_tab(self.active_tab)
+        self._sync_settings_compact_button()
 
     def _save_from_menu(self) -> None:
         self._close_file_menu()
@@ -484,6 +519,9 @@ class Hud:
         if not _widget_hidden(self.context_panel):
             self.hide_context_menu()
             return True
+        if self.settings_menu_open:
+            self._close_settings_menu()
+            return True
         if self.file_menu_open:
             self._close_file_menu()
             return True
@@ -494,6 +532,9 @@ class Hud:
         if point is None:
             return False
         x, z = point
+        for region in (_region_for(self.file_button), _region_for(self.settings_button)):
+            if region is not None and _point_in_region(x, z, region):
+                return False
         if not _widget_hidden(self.shop_amount_panel):
             region = _region_for(self.shop_amount_panel)
             if not _point_in_region(x, z, region):
@@ -508,6 +549,16 @@ class Hud:
             region = _region_for(self.context_panel)
             if not _point_in_region(x, z, region):
                 self.hide_context_menu()
+                return True
+        if self.settings_menu_open:
+            region = _region_for(self.settings_menu)
+            if not _point_in_region(x, z, region):
+                self._close_settings_menu()
+                return True
+        if self.file_menu_open:
+            region = _region_for(self.file_menu)
+            if not _point_in_region(x, z, region):
+                self._close_file_menu()
                 return True
         return False
 
@@ -529,6 +580,7 @@ class Hud:
             _region_for(self.context_panel) if not _widget_hidden(self.context_panel) else None,
             _region_for(self.loot_panel) if not _widget_hidden(self.loot_panel) else None,
             _region_for(self.shop_amount_panel) if not _widget_hidden(self.shop_amount_panel) else None,
+            _region_for(self.settings_menu) if self.settings_menu_open else None,
             _region_for(self.file_menu) if self.file_menu_open else None,
         ]
         return any(_point_in_region(x, z, region) for region in regions if region is not None)
@@ -561,6 +613,14 @@ class Hud:
     def _close_file_menu(self) -> None:
         self.file_menu_open = False
         self.file_menu.hide()
+
+    def _close_settings_menu(self) -> None:
+        self.settings_menu_open = False
+        self.settings_menu.hide()
+
+    def _sync_settings_compact_button(self) -> None:
+        if hasattr(self, "settings_compact_button"):
+            self.settings_compact_button["text"] = f"Compact HUD: {'On' if getattr(self, 'tabs_collapsed', False) else 'Off'}"
 
     def select_tab(self, tab_id: str) -> None:
         if tab_id not in self.tab_frames:
@@ -596,6 +656,7 @@ class Hud:
         else:
             self.tab_box.show()
         self.apply_viewport_layout(self.viewport_aspect)
+        self._sync_settings_compact_button()
 
     def _build_side_tabs(self) -> None:
         tab_labels = {

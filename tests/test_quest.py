@@ -329,6 +329,54 @@ def test_shipped_field_provisions_quest_tracks_and_rewards_once() -> None:
     assert app.skills.xp("cooking") == 20
 
 
+def test_shipped_road_watch_quest_tracks_and_rewards_once() -> None:
+    quest = QuestSystem(_load_data("quests.json"))
+
+    started = quest.talk_to("road_watch")
+
+    assert started.feedback.startswith("Scout:")
+    assert quest.current_objective().text == "Road watch 0/4: Visit the shop."
+
+    quest.record("used_shop")
+
+    assert quest.current_objective().text == "Road watch 1/4: Equip a weapon."
+
+    quest.record("equipped_weapon")
+
+    assert quest.current_objective().text == "Road watch 2/4: Use the bank."
+
+    quest.record("used_bank")
+
+    assert quest.current_objective().text == "Road watch 3/4: Defeat an enemy."
+
+    quest.record("defeated_enemy")
+    completed = quest.talk_to("road_watch")
+    after = quest.talk_to("road_watch")
+    app = SimpleNamespace(
+        inventory=Inventory(),
+        skills=Skills(
+            {
+                "attack": {
+                    "display_name": "Attack",
+                    "starting_level": 1,
+                    "xp_thresholds": skill_xp_thresholds(),
+                }
+            }
+        ),
+    )
+
+    GameApp._apply_quest_rewards(app, completed)
+    GameApp._apply_quest_rewards(app, after)
+
+    assert completed.completed is True
+    assert completed.feedback == "Quest complete: Road watch. Reward: 30 coins, +20 Attack XP."
+    assert after.feedback == "Scout: The road holds steady for now."
+    assert after.item_rewards == ()
+    assert after.skill_rewards == ()
+    assert app.inventory.count(COINS_ITEM_ID) == 30
+    assert app.skills.xp("attack") == 20
+
+
 def _quest_data() -> dict[str, object]:
     return {
         "quests": [

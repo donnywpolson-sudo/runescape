@@ -18,6 +18,7 @@ $CanonicalAuditPath = ".codex\AUDIT.md"
 $AuditOutputDir = "reports\audit"
 $CurrentAuditPath = Join-Path $AuditOutputDir "AUDIT_CURRENT.md"
 $LatestReportPath = Join-Path $AuditOutputDir "AUDIT_REPORT_LATEST.md"
+$NextPromptPath = Join-Path $AuditOutputDir "NEXT_REMEDIATION_PROMPT.md"
 $Timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $ReportPath = Join-Path $AuditOutputDir "AUDIT_REPORT_$Timestamp.md"
 
@@ -28,6 +29,8 @@ foreach ($line in $dirty) {
     $allowed = (
         $path -eq "RUN_AUDIT_CYCLE.ps1" -or
         $path -eq "CODEX_HANDOFF.md" -or
+        $path -eq "README.md" -or
+        $path -eq "GRAPHICS_ANIMATION_NOTE.md" -or
         $path -like "reports/audit/*"
     )
     if (-not $allowed) {
@@ -126,6 +129,43 @@ if (-not (Test-Path $ReportPath)) {
     throw "Audit report was not created at $ReportPath"
 }
 
+$ReportText = Get-Content -Raw -LiteralPath $ReportPath
+$SelectedBatchSectionMatch = [regex]::Match(
+    $ReportText,
+    '(?ms)^# Selected Remediation Batch\r?\n(?<body>.*?)(?:\r?\n# |\z)'
+)
+$NextPromptSectionMatch = [regex]::Match(
+    $ReportText,
+    '(?ms)^# Next Codex Prompt\r?\n(?<body>.*)\s*$'
+)
+
+$SelectedBatch = ""
+$SelectedBatchSeverity = ""
+if ($SelectedBatchSectionMatch.Success) {
+    $SelectedBatchSection = $SelectedBatchSectionMatch.Groups["body"].Value.Trim()
+    $SelectedBatchMatch = [regex]::Match($SelectedBatchSection, '(?m)^\* Selected batch:\s*(.+)$')
+    $SelectedBatchSeverityMatch = [regex]::Match($SelectedBatchSection, '(?m)^\* Selected batch severity:\s*(.+)$')
+    $SelectedBatch = $SelectedBatchMatch.Groups[1].Value.Trim()
+    $SelectedBatchSeverity = $SelectedBatchSeverityMatch.Groups[1].Value.Trim()
+}
+
+$NextPromptBody = if ($NextPromptSectionMatch.Success) {
+    $NextPromptSectionMatch.Groups["body"].Value.Trim()
+} elseif ($SelectedBatchSectionMatch.Success) {
+    @"
+Selected remediation batch:
+$SelectedBatchSection
+
+The report did not include a ready-to-paste next prompt section.
+Use the selected remediation batch above to craft a separate Codex implementation run.
+"@.Trim()
+} else {
+    @"
+The report did not include a selected remediation batch or next prompt section.
+Review $ReportPath and craft a separate Codex implementation run from the report findings.
+"@.Trim()
+}
+
 @"
 # Latest Audit Report
 
@@ -133,17 +173,27 @@ Path: $ReportPath
 Generated: $Timestamp
 Audit-only: yes
 Remediation applied: no
-Selected batch summary: CODEX_HANDOFF.md
-Next action: run a separate approved remediation goal
+Selected batch prompt path: $NextPromptPath
+Next action: paste the generated prompt into a separate approved remediation goal
 "@ | Set-Content -Path $LatestReportPath -Encoding UTF8
 
+$NextPrompt = @"
+# Next Remediation Prompt
+
+Source report: $ReportPath
+Latest report pointer: $LatestReportPath
+Selected batch prompt path: $NextPromptPath
+Selected batch: $SelectedBatch
+Severity: $SelectedBatchSeverity
+
+$NextPromptBody
+"@
+
+Set-Content -LiteralPath $NextPromptPath -Value $NextPrompt -Encoding UTF8
+
 Write-Host ""
-Write-Host "Audit-only selected batch summary:" -ForegroundColor Cyan
-if (Test-Path "CODEX_HANDOFF.md") {
-    Get-Content -Raw "CODEX_HANDOFF.md"
-} else {
-    Write-Host "CODEX_HANDOFF.md was not created." -ForegroundColor Yellow
-}
+Write-Host "Next remediation prompt:" -ForegroundColor Cyan
+Get-Content -Raw -LiteralPath $NextPromptPath
 
 Write-Host ""
 Write-Host "Final git status:" -ForegroundColor Cyan

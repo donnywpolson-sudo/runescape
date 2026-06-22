@@ -1007,6 +1007,15 @@
         14
       ],
       "quest_id": "field_provisions"
+    },
+    {
+      "id": "gate_scout_01",
+      "name": "Gate Scout",
+      "tile": [
+        19,
+        14
+      ],
+      "quest_id": "road_watch"
     }
   ]
 }

@@ -72,6 +72,30 @@
       "skill_rewards": [
         {"skill_id": "cooking", "xp": 20}
       ]
+    },
+    {
+      "quest_id": "road_watch",
+      "display_name": "Road watch",
+      "start_text": "Scout: Pick up supplies at the shop, equip a weapon, bank any spare coin, and clear one road threat before you report back.",
+      "in_progress_text": "Scout: The watch is not done yet. Still needed: {missing_objectives}.",
+      "completed_text": "Scout: The road holds steady for now.",
+      "completion_text": "Quest complete: Road watch. Reward: 30 coins, +20 Attack XP.",
+      "not_started_objective": "Talk to the Gate Scout.",
+      "return_objective": "Return to the Gate Scout.",
+      "completed_objective": "Road watch complete.",
+      "progress_format": "Road watch {completed}/{total}: {objective}.",
+      "objectives": [
+        {"flag": "used_shop", "label": "Visit the shop"},
+        {"flag": "equipped_weapon", "label": "Equip a weapon"},
+        {"flag": "used_bank", "label": "Use the bank"},
+        {"flag": "defeated_enemy", "label": "Defeat an enemy"}
+      ],
+      "item_rewards": [
+        {"item_id": "coins", "quantity": 30}
+      ],
+      "skill_rewards": [
+        {"skill_id": "attack", "xp": 20}
+      ]
     }
   ]
 }

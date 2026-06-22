@@ -81,6 +81,8 @@ and verify:
 - Right click ground, gameplay objects, or scenery: choose an action
 - Bottom event log `Up` / `Down`: scroll through previous messages
 - In-game `File` menu: save, load, or quit
+- In-game `Settings` button: toggle the compact HUD layout.
+- There are still no in-game audio/music controls yet.
 - `F5`: save the currently logged-in account
 - `F9`: load the currently logged-in account
 - `Esc`: no quit action; use `File` then `Quit` to close the game while playing
@@ -107,7 +109,7 @@ automatically when needed.
 - Left-click movement with grid A* pathfinding.
 - Classic-style left/right click interactions for ground, gameplay objects, and scenery, including default actions, walk-to behavior, context menus, and examine options.
 - Shared gathering activity system for woodcutting, mining, and fishing with JSON-defined XP, level requirements, item rewards, tiered depletion, respawn state, and required starter tools.
-- Data-driven inventory display, bottom-right skills/equipment tabs, bankable coin item stack, fixed daytime world, compact account HUD, File menu, and per-account save/load.
+- Data-driven inventory display, bottom-right skills/equipment tabs, bankable coin item stack, fixed-noon world time, compact account HUD without a visible clock, in-game Settings toggle, File menu, and per-account save/load.
 - Bank booth with an in-game bank panel for depositing and withdrawing inventory stacks.
 - Shop panel for choosing specific sellable inventory stacks instead of instantly selling everything.
 - Basic combat skills and equipment requirements for wielding higher-tier weapons and shields.

@@ -497,6 +497,35 @@ def test_pointer_over_blocking_ui_covers_tabs_and_overlays(monkeypatch) -> None:
     assert ui.pointer_over_blocking_ui((0.10, 0.20)) is True
 
 
+def test_settings_menu_toggles_compact_tabs_and_closes_transients(monkeypatch) -> None:
+    _install_hud_fakes(monkeypatch)
+    ui = hud.Hud(_items())
+
+    ui.file_button.click()
+    assert ui.file_menu_open is True
+
+    ui.settings_button.click()
+
+    assert ui.file_menu_open is False
+    assert ui.settings_menu_open is True
+    assert ui.settings_menu.hidden is False
+    assert ui.settings_compact_button.text == "Compact HUD: Off"
+
+    ui.settings_compact_button.click()
+
+    assert ui.tabs_collapsed is True
+    assert ui.settings_compact_button.text == "Compact HUD: On"
+    assert ui.tab_box.options["frameSize"] == hud.TAB_BOX_COLLAPSED_FRAME_SIZE
+    settings_region = hud._region_for(ui.settings_menu)
+    assert settings_region is not None
+    assert ui.pointer_over_blocking_ui(
+        ((settings_region[0] + settings_region[1]) / 2, (settings_region[2] + settings_region[3]) / 2)
+    ) is True
+    assert ui.close_transient_if_outside((0.90, 0.90)) is True
+    assert ui.settings_menu_open is False
+    assert ui.settings_menu.hidden is True
+
+
 def test_viewport_layout_anchors_edge_panels(monkeypatch) -> None:
     _install_hud_fakes(monkeypatch)
     ui = hud.Hud(_items())
