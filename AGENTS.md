@@ -6,26 +6,67 @@ This project is an original game inspired by the feel of classic grindable RPGs:
 
 Do not copy RuneScape/OSRS/Stardew proprietary assets, names, dialogue, maps, quests, icons, music, formulas, or copyrighted content. Do not add new branded or near-branded terms such as RuneScape, OSRS, Stardew, rune, runite, or direct equivalents. Use those games only as design inspiration for progression structure and game feel.
 
-Some existing files may still contain prototype names or formulas inherited from earlier work. When touching nearby code/data, flag that drift and prefer original names, original progression curves, and original world/lore content.
+Some existing files may still contain prototype names or formulas inherited from earlier work. When touching nearby code or data, flag that drift and prefer original names, original progression curves, and original world/lore content.
+
+## Working Rules
+
+- Minimize tokens, reads, edits, commands, and output.
+- Implement directly when the task is clear.
+- Plan only for broad or risky work, and keep the plan under 120 words.
+- Ask only when needed to avoid wrong or destructive changes.
+- Read targeted files only; search before opening many files.
+- Skip generated, vendor, cache, build, data, log, and binary files unless they are relevant.
+- Read files directly by path instead of asking the user to paste large files, reports, logs, or full test output.
+- Use short summaries instead of long copied output; ask for full logs only when a short summary is not enough.
+
+## Repository Rules
+
+For all tasks:
+
+- Check `git status --short`.
+- Inspect `README.md`, `requirements.txt`, and the specific source, data, or test files relevant to the request.
+- Identify affected entry points, run/test commands, data files, save formats, and tests before editing those areas.
+- Reuse existing patterns.
+- Avoid rewrites, unrelated changes, speculative future work, and new dependencies unless clearly justified.
+- Preserve behavior and APIs unless the task requires changing them.
+- Do not overwrite user work.
+- Do not perform destructive commands.
+- Do not modify secrets, credentials, lockfiles, migrations, generated artifacts, or delete user work unless required or explicitly requested.
+- Ask before any destructive operation.
+- Do not commit unless explicitly asked.
+
+For audits, "what should I do next?" requests, or broad planning reports:
+
+- Inspect README, docs, package/config files, source folders, tests, and TODOs.
+- Inventory implemented, partial, unused, stubbed, and missing systems.
+- Identify the tech stack, entry points, run commands, test commands, asset folders, and save/data formats.
+
+## Multi-step Work
+
+- Use `CODEX_HANDOFF.md` for tasks that need multiple prompts.
+- Read `CODEX_HANDOFF.md` first if it exists.
+- Update `CODEX_HANDOFF.md` at the end of each run with what changed, files changed, commands run, test results, remaining work, and the next recommended step.
+- Do not create or update `CODEX_HANDOFF.md` for simple one-shot tasks.
 
 ## Project Facts
 
 * Stack: Python 3.11, Panda3D, pytest.
 * Setup: `py -3.11 -m venv .venv`, `.venv\Scripts\Activate.ps1`, then `python -m pip install -r requirements.txt`.
 * Run command: `python -m game.main`.
+* Launcher build (if needed): `.\launcher\build_launcher.ps1`.
 * Test commands: `python -m pytest` and `python -m game.tools.validate_data`.
 * Main source: `game/`.
 * Tests: `tests/`.
 * Data files: `game/data/items.json`, `game/data/skills.json`, `game/data/world.json`, and `game/data/recipes.json`.
 * Save/account files: local `users.db`, `saves/<username>.json`, and legacy `savegame.json`.
 * Save/versioning code: `game/engine/save.py`; data validation code: `game/engine/validation.py`.
-* `AGENTS.md` is the authoritative repo instruction file. Older planning prompts such as `NEXT HIGH YIELD.txt` are secondary references only.
+* `AGENTS.md` is the authoritative repo instruction file. Older planning prompts such as `NEXT HIGH_YIELD.txt` are secondary references only.
 
 ## Core Design Goals
 
 Prioritize features that make the game feel more playable, grindable, and complete:
 
-1. Core loop: gather → process/craft → sell/use → level up → unlock better content.
+1. Core loop: gather -> process/craft -> sell/use -> level up -> unlock better content.
 2. Skill progression with XP, levels, unlocks, and meaningful rewards.
 3. Simple but satisfying combat.
 4. Inventory, equipment, drops, shops, and banking.
@@ -33,49 +74,32 @@ Prioritize features that make the game feel more playable, grindable, and comple
 6. Clear UI feedback for actions, XP, levels, loot, errors, and unlocks.
 7. Incremental content additions over large rewrites.
 
-## Repository Rules
-
-For all tasks:
-
-* Check `git status --short`.
-* Inspect `README.md`, `requirements.txt`, and the specific source/data/test files relevant to the request.
-* Identify affected entry points, run/test commands, data files, save formats, and tests before editing those areas.
-* Do not overwrite user work.
-* Do not perform destructive commands.
-* Do not make broad rewrites unless explicitly requested.
-
-For audits, "what should I do next?" requests, or broad planning reports:
-
-* Inspect `README`, docs, package/config files, source folders, tests, and TODOs.
-* Inventory implemented, partial, unused, stubbed, and missing systems.
-* Identify the tech stack, entry points, run commands, test commands, asset folders, and save/data formats.
-
 ## Implementation Rules
 
 Prefer:
 
-* Small, shippable increments.
-* Reusing existing systems.
-* Minimal architecture disruption.
-* Data-driven content where practical.
-* Clear separation between game logic, rendering/UI, assets, and persistence.
-* Simple systems that can be expanded later.
+- Small, shippable increments.
+- Reusing existing systems.
+- Minimal architecture disruption.
+- Data-driven content where practical.
+- Clear separation between game logic, rendering/UI, assets, and persistence.
+- Simple systems that can be expanded later.
 
 Avoid:
 
-* Big-bang rewrites.
-* Unused abstractions.
-* Premature optimization.
-* Hardcoded one-off content when a small data structure would work.
-* Adding dependencies unless clearly justified.
-* Breaking existing saves unless migration is included.
+- Big-bang rewrites.
+- Unused abstractions.
+- Premature optimization.
+- Hardcoded one-off content when a small data structure would work.
+- Adding dependencies unless clearly justified.
+- Breaking existing saves unless migration is included.
 
 Data/save rules:
 
-* Keep gameplay content data-driven in `game/data/*.json` when practical.
-* When changing data schemas or adding data files, update `game/engine/validation.py` and run `python -m game.tools.validate_data`.
-* When changing save shape, update migration logic in `game/engine/save.py`, bump or respect `SAVE_VERSION` as appropriate, and preserve old save compatibility.
-* Add or update focused tests for validation, save migration, and any system that consumes changed data.
+- Keep gameplay content data-driven in `game/data/*.json` when practical.
+- When changing data schemas or adding data files, update `game/engine/validation.py` and run `python -m game.tools.validate_data`.
+- When changing save shape, update migration logic in `game/engine/save.py`, bump or respect `SAVE_VERSION` as appropriate, and preserve old save compatibility.
+- Add or update focused tests for validation, save migration, and any system that consumes changed data.
 
 ## Feature Priority
 
@@ -91,30 +115,28 @@ When choosing next work, rank features by:
 
 High-yield feature categories:
 
-* XP/leveling/unlocks.
-* Inventory improvements.
-* Gathering nodes and respawns.
-* Crafting/processing.
-* Combat polish.
-* Loot tables.
-* Shops/economy.
-* Banking/storage.
-* Equipment stats.
-* NPC dialogue.
-* Simple quests.
-* Save/load reliability.
-* UI feedback and tooltips.
-* Content balancing.
+- XP/leveling/unlocks.
+- Inventory improvements.
+- Gathering nodes and respawns.
+- Crafting/processing.
+- Combat polish.
+- Loot tables.
+- Shops/economy.
+- Banking/storage.
+- Equipment stats.
+- NPC dialogue.
+- Simple quests.
+- Save/load reliability.
+- UI feedback and tooltips.
+- Content balancing.
 
 ## Testing Rules
 
-When changing code:
-
-* Run the smallest relevant test first.
-* Then run broader tests/build if available.
-* If no tests exist, add lightweight tests where practical.
-* Always provide manual test steps.
-* Report exact commands run and results.
+- Run the smallest relevant test first.
+- Then run broader tests or builds if needed.
+- If no tests exist, add lightweight tests where practical.
+- Always provide manual test steps when behavior changes.
+- Report the exact commands run and the meaningful result.
 
 ## Output Format For Plans
 
@@ -164,11 +186,9 @@ Use this structure by default unless the user, review mode, or higher-priority s
 
 ## Git Hygiene
 
-* Keep changes focused.
-* Do not mix unrelated refactors with feature work.
-* Mention any untracked or pre-existing modified files.
-* Do not commit unless explicitly asked.
-* Do not add generated artifacts unless required.
+- Keep changes focused.
+- Do not mix unrelated refactors with feature work.
+- Mention any untracked or pre-existing modified files.
 
 ## Default Behavior
 
