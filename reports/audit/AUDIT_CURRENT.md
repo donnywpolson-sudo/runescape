@@ -22,7 +22,7 @@ If the user explicitly asks for a report file, create exactly one timestamped au
 * Do not paste large source files or full command output.
 * Stop once you have enough evidence; do not deep-dive unrelated modules.
 * Evidence must be concise: path plus line, function, class, config key, command, or test name when useful.
-* Code/docs mentioning a feature is not proof it is playable.
+* Code/docs mentioning a feature is not proof it is playable; require player-reachable UI or gameplay-flow evidence, or mark it manually unverified.
 * Do not recommend protected clone content. Translate classic grindable RPG feel into original Hearthvale-safe mechanics, names, lore, items, quests, UI, progression, visuals, and audio.
 * Flag protected-like naming drift, formulas, or content drift when it appears in player-facing content, docs, tests, or recommendations.
 
@@ -76,7 +76,7 @@ Read targeted files only:
 * `game\ui\login.py`
 * targeted source under `game\engine\`, `game\systems\`, `game\world\`, `game\ui\`, `game\entities\`, `game\data\`
 * targeted tests under `tests\` when relevant, especially `tests\test_validation.py`, `tests\test_save.py`, `tests\test_time.py`, `tests\test_launcher.py`, `tests\test_hud.py`, and `tests\test_world_rendering.py`
-* `reports\audit\` only when comparing prompt/report drift or an audit cycle is explicitly requested
+* `reports\audit\AUDIT_CURRENT.md`, `reports\audit\AUDIT_REPORT_LATEST.md`, and `reports\audit\NEXT_REMEDIATION_PROMPT.md` only when comparing prompt/report drift or an audit cycle is explicitly requested
 
 ## Required Searches
 

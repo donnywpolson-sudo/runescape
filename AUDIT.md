@@ -6,6 +6,8 @@ You are auditing the local Hearthvale project at:
 
 Goal: inspect the current repository and produce one concise, evidence-based audit report of what should be improved. This audit is read-only. Do not fix code, data, tests, docs, saves, launcher files, generated files, or reports unless the user explicitly gives a separate implementation request after the audit.
 
+This is the second stage of the workflow: first use `META_AUDIT.md` to refresh this prompt, then use this prompt to audit the project and finish with a paste-ready implementation prompt.
+
 ## Hard Rules
 
 * Verify the local path and repo root before inspecting anything else. Stop if they are wrong.
@@ -17,7 +19,7 @@ Goal: inspect the current repository and produce one concise, evidence-based aud
 * Do not inspect real local account/save contents unless the user explicitly asks: `users.db`, `saves/`, `savegame.json`.
 * Do not paste large source files or full command output.
 * Evidence must be concise: path plus line, function, class, config key, command, or test name when useful.
-* Code/docs mentioning a feature is not proof it is playable.
+* Code/docs mentioning a feature is not proof it is playable; require player-reachable UI or gameplay-flow evidence, or mark it manually unverified.
 * Do not recommend protected clone content. Translate classic grindable RPG feel into original Hearthvale-safe mechanics, names, lore, items, quests, UI, progression, visuals, and audio.
 
 ## Project Facts To Verify
@@ -49,6 +51,7 @@ Important repo areas:
 * User data boundaries: `users.db`, `saves/<username>.json`, legacy `savegame.json`
 * Launcher/build docs: `launcher/`, `Hearthvale.spec`, `build/`, `dist/`, `README.md`
 * Planning/docs: `AGENTS.md`, `docs/`, `GRAPHICS_ANIMATION_NOTE.md`
+* Audit workflow drift: `reports\audit\AUDIT_CURRENT.md`, `reports\audit\AUDIT_REPORT_LATEST.md`, `reports\audit\NEXT_REMEDIATION_PROMPT.md`
 * Tests: `tests/`
 
 Protected/generated areas:
@@ -85,6 +88,7 @@ Read targeted files only:
 * targeted tests under `tests/`, especially `tests/test_validation.py`, `tests/test_save.py`, `tests/test_time.py`, `tests/test_auth.py`, `tests/test_login.py`, `tests/test_hud.py`, `tests/test_world_rendering.py`, and `tests/test_app_audio.py`
 * launcher/build files only when auditing launcher/build risk
 * docs/planning files only when they affect current behavior or recommendations
+* `reports\audit\AUDIT_CURRENT.md`, `reports\audit\AUDIT_REPORT_LATEST.md`, and `reports\audit\NEXT_REMEDIATION_PROMPT.md` when comparing prompt/report drift or an audit cycle is explicitly requested
 
 Search implementation and risk signals:
 
@@ -245,4 +249,4 @@ Rank | Feature/Fix | Why | Complexity | Risk | Files likely touched | Acceptance
 
 # Next Codex Prompt
 
-A scoped implementation prompt ready to paste. It must ask for one small, testable improvement and must repeat: do not copy protected content, preserve user work, and do not commit.
+A single paste-ready implementation prompt in a fenced text block, with no commentary after it. It must include exact scope, files, commands, stop conditions, and forbidden actions. It must ask for one small, testable improvement and must repeat: do not copy protected content, preserve user work, and do not commit.
